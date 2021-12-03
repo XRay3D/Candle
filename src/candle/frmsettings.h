@@ -4,21 +4,20 @@
 #ifndef FRMSETTINGS_H
 #define FRMSETTINGS_H
 
-#include <QDialog>
-#include <QMessageBox>
-#include <QListWidgetItem>
-#include <QSettings>
-#include <QGroupBox>
-#include <QVector3D>
 #include "colorpicker.h"
+#include <QDialog>
+#include <QGroupBox>
+#include <QListWidgetItem>
+#include <QMessageBox>
+#include <QSettings>
+#include <QVector3D>
 
 namespace Ui {
 class frmSettings;
 }
 
 // TODO: Add overriding bounds settings
-class frmSettings : public QDialog
-{
+class frmSettings : public QDialog {
     Q_OBJECT
     Q_PROPERTY(QString port READ port WRITE setPort)
     Q_PROPERTY(int baud READ baud WRITE setBaud)
@@ -63,16 +62,20 @@ class frmSettings : public QDialog
     Q_PROPERTY(bool homingEnabled READ homingEnabled WRITE setHomingEnabled)
     Q_PROPERTY(bool softLimitsEnabled READ softLimitsEnabled WRITE setSoftLimitsEnabled)
 
+    static frmSettings* instance_;
+
 public:
-    explicit frmSettings(QWidget *parent = 0);
+    explicit frmSettings(QWidget* parent = 0);
     ~frmSettings();
 
-    Ui::frmSettings *ui;
+    static frmSettings* instance(){ return instance_; }
+
+    Ui::frmSettings* ui;
 
     int exec();
     void undo();
 
-    void addCustomSettings(QGroupBox *box);
+    void addCustomSettings(QGroupBox* box);
 
     QString port();
     void setPort(QString port);
@@ -160,13 +163,13 @@ public:
     bool homingEnabled();
     void setHomingEnabled(bool homing);
     bool softLimitsEnabled();
-    void setSoftLimitsEnabled(bool softLimits);    
+    void setSoftLimitsEnabled(bool softLimits);
 
 signals:
     void settingsSetByDefault();
 
 protected:
-    void showEvent(QShowEvent *se);
+    void showEvent(QShowEvent* se);
 
 private slots:
     void onScrollBarValueChanged(int value);
@@ -176,7 +179,7 @@ private slots:
     void on_cboToolType_currentIndexChanged(int index);
     void on_listCategories_currentRowChanged(int currentRow);
     void on_cmdDefaults_clicked();
-    void on_cboFontSize_currentTextChanged(const QString &arg1);
+    void on_cboFontSize_currentTextChanged(const QString& arg1);
     void on_radDrawModeVectors_toggled(bool checked);
     void on_radDrawModeRaster_toggled(bool checked);
     void on_radGrayscaleS_toggled(bool checked);

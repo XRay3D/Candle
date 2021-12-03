@@ -1,9 +1,10 @@
 #ifndef GRBL_H
 #define GRBL_H
 
-#include <QtSerialPort/QSerialPort>
-
+#include "qglobal.h"
 #include <QMap>
+#include <QVector3D>
+#include <QtSerialPort/QSerialPort>
 
 struct CommandAttributes {
     int length;
@@ -13,10 +14,10 @@ struct CommandAttributes {
 };
 
 struct CommandQueue {
-    QString command;
-    int tableIndex;
     bool showInConsole;
     bool wait;
+    int tableIndex;
+    QString command;
 };
 
 class frmMain;
@@ -82,14 +83,40 @@ public:
     void setSenderState(SenderState state);
     void setDeviceState(DeviceState state);
 
-    SenderState senderState() const { return senderState_; }
-    DeviceState deviceState() const { return deviceState_; }
+    // Jog
+    void setJogStep(double step);
+    void setJogFeed(double feed);
+    void jogContinuous();
+    void jogStep();
+
+    void jogXMinusRun();
+    void jogXMinusStop();
+    void jogXPlusRun();
+    void jogXPlusStop();
+    void jogYMinusRun();
+    void jogYMinusStop();
+    void jogYPlusRun();
+    void jogYPlusStop();
+    void jogZMinusRun();
+    void jogZMinusStop();
+    void jogZPlusRun();
+    void jogZPlusStop();
+
+    void jogStop();
+
+    QVector3D m_jogVector;
+    double jogStep_;
+    double jogFeed_;
+
+    SenderState senderState() const;
+    DeviceState deviceState() const;
 
     void close() Q_DECL_OVERRIDE;
+    void updatePort();
 
     //private://////////////////////////
     frmMain* frmMain_;
-    frmSettings* settings;
+    frmSettings* m_settings;
     // Queues
     QList<CommandAttributes> commands;
     QList<CommandQueue> queue;

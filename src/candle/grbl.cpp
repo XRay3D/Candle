@@ -1,6 +1,7 @@
 #include "frmmain.h"
 #include "frmsettings.h"
 #include "qscrollbar.h"
+#include "qstringliteral.h"
 #include "ui_frmmain.h"
 
 #include <QMessageBox>
@@ -8,18 +9,12 @@
 GRBL::GRBL(frmSettings* settings, QObject* parent)
     : QSerialPort(parent)
     , frmMain_(static_cast<frmMain*>(parent))
-    , settings(settings)
-{
+    , m_settings(settings) {
     // Setup serial port
     setParity(QSerialPort::NoParity);
     setDataBits(QSerialPort::Data8);
     setFlowControl(QSerialPort::NoFlowControl);
     setStopBits(QSerialPort::OneStop);
-
-    if (settings->port() != "") {
-        setPortName(settings->port());
-        setBaudRate(settings->baud());
-    }
 
     homing_ = false;
     updateSpindleSpeed = false;
@@ -102,8 +97,7 @@ GRBL::GRBL(frmSettings* settings, QObject* parent)
     connect(this, static_cast<void (QSerialPort::*)(QSerialPort::SerialPortError)>(&QSerialPort::error), this, &GRBL::onSerialPortError);
 }
 
-void GRBL::onSerialPortReadyRead()
-{
+void GRBL::onSerialPortReadyRead() {
     while (canReadLine()) {
         QString data = readLine().trimmed();
 
@@ -113,7 +107,7 @@ void GRBL::onSerialPortReadyRead()
                 continue;
             else {
                 reseting = false;
-                frmMain_->m_timerStateQuery.setInterval(settings->queryStateTime());
+                frmMain_->m_timerStateQuery.setInterval(m_settings->queryStateTime());
             }
         }
 
@@ -218,9 +212,9 @@ void GRBL::onSerialPortReadyRead()
             // Update tool position
             QVector3D toolPosition;
             if (!(state == DeviceCheck && frmMain_->m_fileProcessedCommandIndex < frmMain_->m_currentModel->rowCount() - 1)) {
-                toolPosition = QVector3D(frmMain_->toMetric(frmMain_->ui->txtWPosX->value()),
-                    frmMain_->toMetric(frmMain_->ui->txtWPosY->value()),
-                    frmMain_->toMetric(frmMain_->ui->txtWPosZ->value()));
+                toolPosition = QVector3D(toMetric(frmMain_->ui->txtWPosX->value()),
+                    toMetric(frmMain_->ui->txtWPosY->value()),
+                    toMetric(frmMain_->ui->txtWPosZ->value()));
                 frmMain_->m_toolDrawer.setToolPosition(frmMain_->m_codeDrawer->getIgnoreZ() ? QVector3D(toolPosition.x(), toolPosition.y(), 0) : toolPosition);
             }
 
@@ -321,7 +315,7 @@ void GRBL::onSerialPortReadyRead()
             setDeviceState(state);
 
             // Update continuous jog
-            frmMain_->jogContinuous();
+            jogContinuous();
 
             // Emit status signal
             emit frmMain_->statusReceived(data);
@@ -351,7 +345,7 @@ void GRBL::onSerialPortReadyRead()
                         static QRegExp g("G5[4-9]");
                         if (g.indexIn(response) != -1) {
                             frmMain_->m_storedVars.setCS(g.cap(0));
-                            frmMain_->m_machineBoundsDrawer.setOffset(QPointF(frmMain_->toMetric(frmMain_->m_storedVars.x()), frmMain_->toMetric(frmMain_->m_storedVars.y())) + QPointF(frmMain_->toMetric(frmMain_->m_storedVars.G92x()), frmMain_->toMetric(frmMain_->m_storedVars.G92y())));
+                            frmMain_->m_machineBoundsDrawer.setOffset(QPointF(toMetric(frmMain_->m_storedVars.x()), toMetric(frmMain_->m_storedVars.y())) + QPointF(toMetric(frmMain_->m_storedVars.G92x()), toMetric(frmMain_->m_storedVars.G92y())));
                         }
                         static QRegExp t("T(\\d+)(?!\\d)");
                         if (t.indexIn(response) != -1) {
@@ -368,7 +362,7 @@ void GRBL::onSerialPortReadyRead()
                         if (frmMain_->ui->chkKeyboardControl->isChecked())
                             frmMain_->m_absoluteCoordinates = response.contains("G90");
                         else if (response.contains("G90"))
-                            sendCommand("G90", -1, settings->showUICommands());
+                            sendCommand("G90", -1, m_settings->showUICommands());
                     }
 
                     // Process parser status
@@ -404,19 +398,19 @@ void GRBL::onSerialPortReadyRead()
                             p += gs.matchedLength();
                         }
                         if (set.keys().contains(13))
-                            settings->setUnits(set[13]);
+                            m_settings->setUnits(set[13]);
                         if (set.keys().contains(20))
-                            settings->setSoftLimitsEnabled(set[20]);
+                            m_settings->setSoftLimitsEnabled(set[20]);
                         if (set.keys().contains(22)) {
-                            settings->setHomingEnabled(set[22]);
+                            m_settings->setHomingEnabled(set[22]);
                             frmMain_->m_machineBoundsDrawer.setVisible(set[22]);
                         }
                         if (set.keys().contains(110))
-                            settings->setRapidSpeed(set[110]);
+                            m_settings->setRapidSpeed(set[110]);
                         if (set.keys().contains(120))
-                            settings->setAcceleration(set[120]);
+                            m_settings->setAcceleration(set[120]);
                         if (set.keys().contains(130) && set.keys().contains(131) && set.keys().contains(132)) {
-                            settings->setMachineBounds(QVector3D(set[130], set[131], set[132]));
+                            m_settings->setMachineBounds(QVector3D(set[130], set[131], set[132]));
                             frmMain_->m_machineBoundsDrawer.setBorderRect(QRectF(0, 0, -set[130], -set[131]));
                         }
 
@@ -459,7 +453,7 @@ void GRBL::onSerialPortReadyRead()
                         QRegExp rx(".*PRB:([^,]*),([^,]*),([^]^:]*)");
                         double z = qQNaN();
                         if (rx.indexIn(response) != -1) {
-                            z = frmMain_->toMetric(rx.cap(3).toDouble());
+                            z = toMetric(rx.cap(3).toDouble());
                         }
 
                         static double firstZ;
@@ -487,7 +481,7 @@ void GRBL::onSerialPortReadyRead()
 
                     // Change state query time on check mode on
                     if (uncomment.contains(QRegExp("$[cC]"))) {
-                        frmMain_->m_timerStateQuery.setInterval(response.contains("Enable") ? 1000 : settings->queryStateTime());
+                        frmMain_->m_timerStateQuery.setInterval(response.contains("Enable") ? 1000 : m_settings->queryStateTime());
                     }
 
                     // Add response to console
@@ -560,7 +554,7 @@ void GRBL::onSerialPortReadyRead()
                         static bool holding = false;
                         static QString errors;
 
-                        if (ca.tableIndex > -1 && response.toUpper().contains("ERROR") && !settings->ignoreErrors()) {
+                        if (ca.tableIndex > -1 && response.toUpper().contains("ERROR") && !m_settings->ignoreErrors()) {
                             errors.append(QString::number(ca.tableIndex + 1) + ": " + ca.command
                                 + " < " + response + "\n");
 
@@ -578,7 +572,7 @@ void GRBL::onSerialPortReadyRead()
                                 holding = false;
                                 errors.clear();
                                 if (frmMain_->m_senderErrorBox->checkBox()->isChecked())
-                                    settings->setIgnoreErrors(true);
+                                    m_settings->setIgnoreErrors(true);
                                 if (result == QMessageBox::Ignore) {
                                     write("~");
                                 } else {
@@ -606,17 +600,17 @@ void GRBL::onSerialPortReadyRead()
                     // Tool change mode
                     static QRegExp M6("(M0*6|M25)(?!\\d)");
                     if ((senderState_ == SenderPausing) && uncomment.contains(M6)) {
-                        sendCommands(settings->toolChangeCommands());
+                        sendCommands(m_settings->toolChangeCommands());
 
                         response.clear();
                         setSenderState(SenderChangingTool);
                         frmMain_->updateControlsState();
 
-                        if (settings->pauseToolChange()) {
+                        if (m_settings->pauseToolChange()) {
                             QMessageBox::information(frmMain_, qApp->applicationDisplayName(), tr("Change tool and press 'Pause' button to continue job"));
                         }
                     }
-                    if ((senderState_ == SenderChangingTool) && !settings->pauseToolChange()
+                    if ((senderState_ == SenderChangingTool) && !m_settings->pauseToolChange()
                         && commands.isEmpty()) {
                         QString commands = frmMain_->getLineInitCommands(frmMain_->m_fileCommandIndex);
                         sendCommands(commands, -1);
@@ -706,10 +700,9 @@ void GRBL::onSerialPortReadyRead()
     }
 }
 
-void GRBL::onSerialPortError(QSerialPort::SerialPortError error)
-{
-    static QSerialPort::SerialPortError previousError;
-    if (error != QSerialPort::NoError && QSerialPort::error() != previousError) {
+void GRBL::onSerialPortError(QSerialPort::SerialPortError error) {
+    static QSerialPort::SerialPortError previousError(QSerialPort::NoError);
+    if (error != QSerialPort::NoError && error != previousError) {
         previousError = error;
         frmMain_->ui->txtConsole->appendPlainText(tr("Serial port error ") + QString::number(error) + ": " + errorString());
         if (isOpen()) {
@@ -719,32 +712,28 @@ void GRBL::onSerialPortError(QSerialPort::SerialPortError error)
     }
 }
 
-void GRBL::stateQuery()
-{
+void GRBL::stateQuery() {
     write(QByteArray(1, '?'));
 }
 
-void GRBL::homing()
-{
+void GRBL::homing() {
     homing_ = true;
     updateSpindleSpeed = true;
-    sendCommand("$H", -1, settings->showUICommands());
+    sendCommand("$H", -1, m_settings->showUICommands());
 }
 
 GRBL::operator bool() const { return isOpen(); }
 
-void GRBL::openPort()
-{
+void GRBL::openPort() {
     if (open(QIODevice::ReadWrite)) {
-        emit updateStatus(tr("Port opened"), QString("background-color: palette(button); color: palette(text);"));
+        /*emit*/ frmMain_->updateStatus(tr("Port opened"), QString("background-color: palette(button); color: palette(text);"));
         //        frmMain_->ui->txtStatus->setText(tr("Port opened"));
         //        frmMain_->ui->txtStatus->setStyleSheet(QString("background-color: palette(button); color: palette(text);"));
-        reset();
+        grblReset();
     }
 }
 
-void GRBL::grblReset()
-{
+void GRBL::grblReset() {
     write(QByteArray(1, (char)24));
 
     setSenderState(SenderStopped);
@@ -764,9 +753,9 @@ void GRBL::grblReset()
     // Prepare reset response catch
     CommandAttributes ca;
     ca.command = QStringLiteral("[CTRL+X]");
-    if (settings->showUICommands())
+    if (m_settings->showUICommands())
         frmMain_->ui->txtConsole->appendPlainText(ca.command);
-    ca.consoleIndex = settings->showUICommands() ? frmMain_->ui->txtConsole->blockCount() - 1 : -1;
+    ca.consoleIndex = m_settings->showUICommands() ? frmMain_->ui->txtConsole->blockCount() - 1 : -1;
     ca.tableIndex = -1;
     ca.length = ca.command.length() + 1;
     commands.append(ca);
@@ -774,8 +763,7 @@ void GRBL::grblReset()
     frmMain_->updateControlsState();
 }
 
-int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait)
-{
+int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait) {
     // tableIndex:
     // 0...n - commands from g-code program
     // -1 - ui commands
@@ -848,20 +836,18 @@ int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool 
     return 0;
 }
 
-void GRBL::sendCommands(QString commands, int tableIndex)
-{
+void GRBL::sendCommands(QString commands, int tableIndex) {
     QStringList list = commands.split("\n");
 
     bool q = false;
     foreach (QString cmd, list) {
         if (!cmd.isEmpty())
-            if (sendCommand(cmd.trimmed(), tableIndex, settings->showUICommands(), q) == 0)
+            if (sendCommand(cmd.trimmed(), tableIndex, m_settings->showUICommands(), q) == 0)
                 q = true;
     }
 }
 
-void GRBL::sendNextFileCommands()
-{
+void GRBL::sendNextFileCommands() {
     if (queue.length() > 0)
         return;
 
@@ -873,48 +859,209 @@ void GRBL::sendNextFileCommands()
         && !(!commands.isEmpty()
             && GcodePreprocessorUtils::removeComment(commands.last().command).contains(M230))) {
         frmMain_->m_currentModel->setData(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 2), GCodeItem::Sent);
-        sendCommand(command, frmMain_->m_fileCommandIndex, settings->showProgramCommands());
+        sendCommand(command, frmMain_->m_fileCommandIndex, m_settings->showProgramCommands());
         frmMain_->m_fileCommandIndex++;
         command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 1)).toString();
     }
 }
 
-QString GRBL::evaluateCommand(QString command)
-{
+QString GRBL::evaluateCommand(QString command) {
     // Evaluate script
     QRegExp sx("\\{([^\\}]+)\\}");
     QScriptValue v;
     QString vs;
     while (sx.indexIn(command) != -1) {
         v = frmMain_->m_scriptEngine.evaluate(sx.cap(1));
-        vs = v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4)
-                                                 : v.toString();
+        vs = v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4) :
+                                                   v.toString();
         command.replace(sx.cap(0), vs);
     }
     return command;
 }
 
-void GRBL::setSenderState(SenderState state)
-{
+void GRBL::setSenderState(SenderState state) {
     if (senderState_ != state) {
         senderState_ = state;
         emit senderStateChanged(state);
     }
 }
 
-void GRBL::setDeviceState(DeviceState state)
-{
+void GRBL::setDeviceState(DeviceState state) {
     if (deviceState_ != state) {
         deviceState_ = state;
         emit deviceStateChanged(state);
     }
 }
 
-void GRBL::close()
-{
+void GRBL::setJogStep(double step) { jogStep_ = step; }
+
+void GRBL::setJogFeed(double feed) { jogFeed_ = feed; }
+
+void GRBL::jogYPlusRun() {
+    m_jogVector += QVector3D(0, 1, 0);
+    jogStep();
+}
+
+void GRBL::jogYPlusStop() {
+    m_jogVector -= QVector3D(0, 1, 0);
+    jogStep();
+}
+
+void GRBL::jogYMinusRun() {
+    m_jogVector += QVector3D(0, -1, 0);
+    jogStep();
+}
+
+void GRBL::jogYMinusStop() {
+    m_jogVector -= QVector3D(0, -1, 0);
+    jogStep();
+}
+
+void GRBL::jogXPlusRun() {
+    m_jogVector += QVector3D(1, 0, 0);
+    jogStep();
+}
+
+void GRBL::jogXPlusStop() {
+    m_jogVector -= QVector3D(1, 0, 0);
+    jogStep();
+}
+
+void GRBL::jogXMinusRun() {
+    m_jogVector += QVector3D(-1, 0, 0);
+    jogStep();
+}
+
+void GRBL::jogXMinusStop() {
+    m_jogVector -= QVector3D(-1, 0, 0);
+    jogStep();
+}
+
+void GRBL::jogZPlusRun() {
+    m_jogVector += QVector3D(0, 0, 1);
+    jogStep();
+}
+
+void GRBL::jogZPlusStop() {
+    m_jogVector -= QVector3D(0, 0, 1);
+    jogStep();
+}
+
+void GRBL::jogZMinusRun() {
+    m_jogVector += QVector3D(0, 0, -1);
+    jogStep();
+}
+
+void GRBL::jogZMinusStop() {
+    m_jogVector -= QVector3D(0, 0, -1);
+    jogStep();
+}
+
+const QString jogCmd(QStringLiteral("$J=%5G91X%1Y%2Z%3F%4"));
+
+void GRBL::jogStep() {
+    qDebug(__FUNCTION__);
+    if (qFuzzyIsNull(jogStep_)) //|| qFuzzyIsNull(jogFeed_))
+        return;
+
+    QVector3D vec = m_jogVector * jogStep_;
+
+    if (vec.length()) {
+        sendCommand(jogCmd
+                        .arg(vec.x(), 0, 'f', m_settings->units() ? 4 : 3)
+                        .arg(vec.y(), 0, 'f', m_settings->units() ? 4 : 3)
+                        .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
+                        .arg(jogFeed_)
+                        .arg(m_settings->units() ? "G20" : "G21"),
+            -3, m_settings->showUICommands());
+    }
+}
+
+void GRBL::jogContinuous() {
+    static bool block = false;
+    static QVector3D v;
+    if (qFuzzyIsNull(jogStep_) && !block) {
+        if (m_jogVector != v) {
+            // Store jog vector before block
+            QVector3D jogVec = m_jogVector;
+
+            if (v.length()) {
+                block = true;
+                write(QByteArray(1, char(0x85)));
+                while (deviceState_ == DeviceJog)
+                    qApp->processEvents();
+                block = false;
+            }
+            qDebug(__FUNCTION__);
+
+            // Bounds
+            QVector3D b = m_settings->machineBounds();
+            // Current machine coords
+            QVector3D m(toMetric(frmMain_->m_storedVars.Mx()),
+                toMetric(frmMain_->m_storedVars.My()),
+                toMetric(frmMain_->m_storedVars.Mz()));
+            // Distance to bounds
+            QVector3D t;
+            // Minimum distance to bounds
+            double d = 0;
+            if (m_settings->softLimitsEnabled()) {
+                t = QVector3D(jogVec.x() > 0 ? 0 - m.x() : -b.x() - m.x(),
+                    jogVec.y() > 0 ? 0 - m.y() : -b.y() - m.y(),
+                    jogVec.z() > 0 ? 0 - m.z() : -b.z() - m.z());
+                for (int i = 0; i < 3; i++)
+                    if ((jogVec[i] && (qAbs(t[i]) < d)) || (jogVec[i] && !d))
+                        d = qAbs(t[i]);
+                // Coords not aligned, add some bounds offset
+                d -= m_settings->units() ? toMetric(0.0005) : 0.005;
+            } else {
+                for (int i = 0; i < 3; i++)
+                    if (jogVec[i] && (qAbs(b[i]) > d))
+                        d = qAbs(b[i]);
+            }
+
+            // Jog vector
+            QVector3D vec = jogVec * toInches(d);
+
+            if (vec.length()) {
+                sendCommand(jogCmd
+                                .arg(vec.x(), 0, 'f', m_settings->units() ? 4 : 3)
+                                .arg(vec.y(), 0, 'f', m_settings->units() ? 4 : 3)
+                                .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
+                                .arg(jogFeed_)
+                                .arg(m_settings->units() ? "G20" : "G21"),
+                    -2, m_settings->showUICommands());
+            }
+            v = jogVec;
+        }
+    }
+}
+
+void GRBL::jogStop() {
+    m_jogVector = QVector3D(0, 0, 0);
+    queue.clear();
+    write(QByteArray(1, char(0x85)));
+}
+
+GRBL::SenderState GRBL::senderState() const { return senderState_; }
+
+GRBL::DeviceState GRBL::deviceState() const { return deviceState_; }
+
+void GRBL::close() {
     QSerialPort::close();
     if (queue.length() > 0) {
         commands.clear();
         queue.clear();
+    }
+}
+
+void GRBL::updatePort() {
+    if (m_settings->port().size()) {
+        if (isOpen())
+            QSerialPort::close();
+        auto port { m_settings->port() };
+        setPortName(port);
+        auto baud { m_settings->baud() };
+        setBaudRate(baud);
+        //        openPort();
     }
 }

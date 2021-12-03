@@ -52,6 +52,9 @@
 
 #include "grbl.h"
 
+double toMetric(double value);
+double toInches(double value);
+
 namespace Ui {
 class frmMain;
 class frmProgram;
@@ -64,8 +67,7 @@ public:
 #define _GLIBCXX_USE_NOEXCEPT _NOEXCEPT
 #endif
 
-    const char* what() const throw()
-    {
+    const char* what() const throw() {
         return "Operation was cancelled by user";
     }
 };
@@ -161,19 +163,6 @@ private slots:
     void on_cmdHeightMapCreate_clicked();
     void on_cmdHeightMapLoad_clicked();
     void on_cmdHeightMapBorderAuto_clicked();
-    void on_cmdYPlus_pressed();
-    void on_cmdYPlus_released();
-    void on_cmdYMinus_pressed();
-    void on_cmdYMinus_released();
-    void on_cmdXPlus_pressed();
-    void on_cmdXPlus_released();
-    void on_cmdXMinus_pressed();
-    void on_cmdXMinus_released();
-    void on_cmdZPlus_pressed();
-    void on_cmdZPlus_released();
-    void on_cmdZMinus_pressed();
-    void on_cmdZMinus_released();
-    void on_cmdStop_clicked();
     void on_tblProgram_customContextMenuRequested(const QPoint& pos);
     void on_mnuViewWindows_aboutToShow();
     void on_mnuViewPanels_aboutToShow();
@@ -198,6 +187,9 @@ private slots:
 
     void updateHeightMapInterpolationDrawer(bool reset = false);
     void placeVisualizerButtons();
+
+    void on_cboJogStep_currentTextChanged(const QString &arg1);
+    void on_cboJogFeed_currentTextChanged(const QString &arg1);
 
 protected:
     void showEvent(QShowEvent* se);
@@ -253,7 +245,7 @@ private:
     frmAbout m_frmAbout;
 
     // Serial port
-    GRBL grbl;
+    GRBL* grbl;
 
     // Filenames
     QString m_settingsFileName;
@@ -303,9 +295,6 @@ private:
 
     // Spindle
     bool m_spindleCW;
-
-    // Jog
-    QVector3D m_jogVector;
 
     // Script
     QScriptEngine m_scriptEngine;
@@ -367,10 +356,7 @@ private:
     bool dataIsReset(QString data);
     QTime updateProgramEstimatedTime(QList<LineSegment*> lines);
     QList<LineSegment*> subdivideSegment(LineSegment* segment);
-    void jogStep();
-    void jogContinuous();
-    double toMetric(double value);
-    double toInches(double value);
+
     bool compareCoordinates(double x, double y, double z);
     bool isGCodeFile(QString fileName);
     bool isHeightmapFile(QString fileName);

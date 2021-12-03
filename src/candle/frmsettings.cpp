@@ -15,6 +15,9 @@
 #include <QPlainTextEdit>
 #include <QDir>
 #include <QLocale>
+#include <exception>
+
+frmSettings * frmSettings::instance_;
 
 class CustomKeySequenceEdit : public QKeySequenceEdit
 {
@@ -66,8 +69,12 @@ frmSettings::frmSettings(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::frmSettings)
 {
-    ui->setupUi(this);
+    if(!instance_)
+        instance_ = this;
+    else
+        throw std::exception("Dublicated frmSettings");
 
+    ui->setupUi(this);
     this->setLocale(QLocale::C);
     m_intValidator.setBottom(1);
     m_intValidator.setTop(999);
@@ -101,6 +108,7 @@ frmSettings::frmSettings(QWidget *parent) :
             ui->cboLanguage->addItem(l.nativeLanguageName(), l.name().left(2));
         }
     }
+
 }
 
 frmSettings::~frmSettings()
