@@ -5,7 +5,6 @@
 #define FRMMAIN_H
 
 #include <QMainWindow>
-#include <QtSerialPort/QSerialPort>
 #include <QSettings>
 #include <QTimer>
 #include <QBasicTimer>
@@ -51,24 +50,14 @@
     #include "shobjidl.h"
 #endif
 
+#include "grbl.h"
+
 namespace Ui {
 class frmMain;
 class frmProgram;
 }
 
-struct CommandAttributes {
-    int length;
-    int consoleIndex;
-    int tableIndex;
-    QString command;
-};
 
-struct CommandQueue {
-    QString command;
-    int tableIndex;
-    bool showInConsole;
-    bool wait;
-};
 
 class CancelException : public std::exception {
 public:
@@ -88,6 +77,7 @@ class frmMain : public QMainWindow
     Q_OBJECT
 
     friend class ScriptFunctions;
+    friend class GRBL;
 
 public:
     explicit frmMain(QWidget *parent = 0);
@@ -96,8 +86,6 @@ public:
 signals:
     void responseReceived(QString command, int tableIndex, QString response);
     void statusReceived(QString status);
-    void senderStateChanged(int state);
-    void deviceStateChanged(int state);
     void settingsAboutToLoad();
     void settingsLoaded();
     void settingsAboutToSave();
@@ -194,8 +182,6 @@ private slots:
     void on_mnuViewPanels_aboutToShow();
     void on_dockVisualizer_visibilityChanged(bool visible);
 
-    void onSerialPortReadyRead();
-    void onSerialPortError(QSerialPort::SerialPortError);
     void onTimerConnection();
     void onTimerStateQuery();
     void onTableInsertLine();
@@ -231,41 +217,8 @@ private:
     static const int PROGRESSMINLINES = 10000;
     static const int PROGRESSSTEP = 1000;    
 
-    enum SenderState {
-        SenderUnknown = -1,
-        SenderTransferring = 0,
-        SenderPausing = 1,
-        SenderPaused = 2,
-        SenderStopping = 3,
-        SenderStopped = 4,
-        SenderChangingTool = 5
-    };
-
-    enum DeviceState {
-        DeviceUnknown = -1,
-        DeviceIdle = 1,
-        DeviceAlarm = 2,
-        DeviceRun = 3,
-        DeviceHome = 4,
-        DeviceHold0 = 5,
-        DeviceHold1 = 6,
-        DeviceQueue = 7,
-        DeviceCheck = 8,
-        DeviceDoor0 = 9,
-        DeviceDoor1 = 10,
-        DeviceDoor2 = 11,
-        DeviceDoor3 = 12,
-        DeviceJog = 13,
-        DeviceSleep =14
-    };
-
     // Ui
     Ui::frmMain *ui;
-
-    QMap<DeviceState, QString> m_deviceStatuses;
-    QMap<DeviceState, QString> m_statusCaptions;
-    QMap<DeviceState, QString> m_statusBackColors;
-    QMap<DeviceState, QString> m_statusForeColors;
 
     QMenu *m_tableMenu;
     QMessageBox* m_senderErrorBox;
@@ -278,9 +231,6 @@ private:
     GcodeViewParse m_viewParser;
     GcodeViewParse m_probeParser;
 
-    // State
-    SenderState m_senderState;
-    DeviceState m_deviceState;
 
     // Visualizer drawers
     // TODO: Add machine table visualizer
@@ -303,11 +253,7 @@ private:
     HeightMapTableModel m_heightMapModel;
 
     // Serial port
-    QSerialPort m_serialPort;
-
-    // Queues
-    QList<CommandAttributes> m_commands;
-    QList<CommandQueue> m_queue;    
+    GRBL grbl;
 
     // Forms
     frmSettings *m_settings;
@@ -332,18 +278,18 @@ private:
 
     // Flags
     bool m_programLoading;
-    bool m_settingsLoading;
+//    bool settingsLoading;
     bool m_fileChanged;
     bool m_heightMapChanged;
 
-    bool m_homing;
-    bool m_updateSpindleSpeed;
-    bool m_updateParserStatus;
+//    bool homing;
+//    bool updateSpindleSpeed;
+//    bool updateParserStatus;
 
-    bool m_reseting;
-    bool m_resetCompleted;
-    bool m_aborting;
-    bool m_statusReceived;
+//    bool reseting;
+//    bool resetCompleted;
+//    bool aborting;
+//    bool statusReceived;
 
     bool m_heightMapMode;
 
@@ -381,14 +327,6 @@ private:
 
     // Plugins
     void loadPlugins();
-
-    // Communication
-    void openPort();
-    void grblReset();
-    int sendCommand(QString command, int tableIndex = -1, bool showInConsole = true, bool wait = false);
-    void sendCommands(QString commands, int tableIndex = -1);
-    void sendNextFileCommands();
-    QString evaluateCommand(QString command);
 
     // Parser
     void updateParser();
@@ -441,14 +379,17 @@ private:
     bool isGCodeFile(QString fileName);
     bool isHeightmapFile(QString fileName);
     int buttonSize();
-    void setSenderState(SenderState state);
-    void setDeviceState(DeviceState state);
+
     void completeTransfer();
     QString getLineInitCommands(int row);
 
     static bool actionLessThan(const QAction *a1, const QAction *a2);
     static bool actionTextLessThan(const QAction *a1, const QAction *a2);
     static QScriptValue importExtension(QScriptContext *context, QScriptEngine *engine);
+
+    //grbl
+    void updateStatus(const QString& text, const QString& sheet = QString());
+
 };
 
 typedef QMap<QString, QList<QKeySequence>> ShortcutsMap;
