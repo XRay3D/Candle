@@ -4,50 +4,50 @@
 #ifndef FRMMAIN_H
 #define FRMMAIN_H
 
-#include <QMainWindow>
-#include <QSettings>
-#include <QTimer>
 #include <QBasicTimer>
-#include <QStringList>
-#include <QList>
-#include <QTime>
-#include <QMenu>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QGroupBox>
+#include <QList>
+#include <QMainWindow>
+#include <QMenu>
 #include <QProgressDialog>
 #include <QScriptEngine>
-#include <QGroupBox>
+#include <QSettings>
+#include <QStringList>
+#include <QTime>
+#include <QTimer>
 #include <exception>
 
 #include "parser/gcodeviewparse.h"
 
-#include "drawers/origindrawer.h"
 #include "drawers/gcodedrawer.h"
-#include "drawers/tooldrawer.h"
 #include "drawers/heightmapborderdrawer.h"
 #include "drawers/heightmapgriddrawer.h"
 #include "drawers/heightmapinterpolationdrawer.h"
-#include "drawers/shaderdrawable.h"
-#include "drawers/selectiondrawer.h"
 #include "drawers/machineboundsdrawer.h"
+#include "drawers/origindrawer.h"
+#include "drawers/selectiondrawer.h"
+#include "drawers/shaderdrawable.h"
+#include "drawers/tooldrawer.h"
 
 #include "tables/gcodetablemodel.h"
 #include "tables/heightmaptablemodel.h"
 
 #include "utils/interpolation.h"
 
-#include "styledtoolbutton.h"
 #include "sliderbox.h"
+#include "styledtoolbutton.h"
 
-#include "frmsettings.h"
 #include "frmabout.h"
+#include "frmsettings.h"
 
-#include "scriptvars.h"
 #include "scriptfunctions.h"
+#include "scriptvars.h"
 
 #ifdef WINDOWS
-    #include <QtWinExtras/QtWinExtras>
-    #include "shobjidl.h"
+#include "shobjidl.h"
+#include <QtWinExtras/QtWinExtras>
 #endif
 
 #include "grbl.h"
@@ -56,8 +56,6 @@ namespace Ui {
 class frmMain;
 class frmProgram;
 }
-
-
 
 class CancelException : public std::exception {
 public:
@@ -72,15 +70,14 @@ public:
     }
 };
 
-class frmMain : public QMainWindow
-{
+class frmMain : public QMainWindow {
     Q_OBJECT
 
     friend class ScriptFunctions;
     friend class GRBL;
 
 public:
-    explicit frmMain(QWidget *parent = 0);
+    explicit frmMain(QWidget* parent = 0);
     ~frmMain();
 
 signals:
@@ -177,7 +174,7 @@ private slots:
     void on_cmdZMinus_pressed();
     void on_cmdZMinus_released();
     void on_cmdStop_clicked();
-    void on_tblProgram_customContextMenuRequested(const QPoint &pos);
+    void on_tblProgram_customContextMenuRequested(const QPoint& pos);
     void on_mnuViewWindows_aboutToShow();
     void on_mnuViewPanels_aboutToShow();
     void on_dockVisualizer_visibilityChanged(bool visible);
@@ -197,47 +194,46 @@ private slots:
     void onCboCommandReturnPressed();
     void onDockTopLevelChanged(bool topLevel);
     void onScroolBarAction(int action);
-    void onScriptException(const QScriptValue &exception);
+    void onScriptException(const QScriptValue& exception);
 
     void updateHeightMapInterpolationDrawer(bool reset = false);
     void placeVisualizerButtons();
 
 protected:
-    void showEvent(QShowEvent *se);
-    void hideEvent(QHideEvent *he);
-    void resizeEvent(QResizeEvent *re);
-    void timerEvent(QTimerEvent *);
-    void closeEvent(QCloseEvent *ce);
-    void dragEnterEvent(QDragEnterEvent *dee);
-    void dropEvent(QDropEvent *de);
-    QMenu *createPopupMenu() override;
+    void showEvent(QShowEvent* se);
+    void hideEvent(QHideEvent* he);
+    void resizeEvent(QResizeEvent* re);
+    void timerEvent(QTimerEvent*);
+    void closeEvent(QCloseEvent* ce);
+    void dragEnterEvent(QDragEnterEvent* dee);
+    void dropEvent(QDropEvent* de);
+    QMenu* createPopupMenu() override;
 
 private:
     static const int BUFFERLENGTH = 127;
     static const int PROGRESSMINLINES = 10000;
-    static const int PROGRESSSTEP = 1000;    
+    static const int PROGRESSSTEP = 1000;
 
     // Ui
-    Ui::frmMain *ui;
+    Ui::frmMain* ui;
 
-    QMenu *m_tableMenu;
+    QMenu* m_tableMenu;
     QMessageBox* m_senderErrorBox;
 #ifdef WINDOWS
-    QWinTaskbarButton *m_taskBarButton;
-    QWinTaskbarProgress *m_taskBarProgress;
+    QWinTaskbarButton* m_taskBarButton;
+    QWinTaskbarProgress* m_taskBarProgress;
 #endif
 
     // Parsers
     GcodeViewParse m_viewParser;
     GcodeViewParse m_probeParser;
 
-
     // Visualizer drawers
     // TODO: Add machine table visualizer
-    OriginDrawer *m_originDrawer;
-    GcodeDrawer *m_codeDrawer;    
-    GcodeDrawer *m_probeDrawer;
-    GcodeDrawer *m_currentDrawer;
+    OriginDrawer* m_originDrawer;
+    GcodeDrawer* m_codeDrawer;
+    GcodeDrawer* m_probeDrawer;
+    GcodeDrawer* m_currentDrawer;
     ToolDrawer m_toolDrawer;
     HeightMapBorderDrawer m_heightMapBorderDrawer;
     HeightMapGridDrawer m_heightMapGridDrawer;
@@ -249,15 +245,15 @@ private:
     GCodeTableModel m_programModel;
     GCodeTableModel m_probeModel;
     GCodeTableModel m_programHeightmapModel;
-    GCodeTableModel *m_currentModel;
+    GCodeTableModel* m_currentModel;
     HeightMapTableModel m_heightMapModel;
+
+    // Forms
+    frmSettings* m_settings;
+    frmAbout m_frmAbout;
 
     // Serial port
     GRBL grbl;
-
-    // Forms
-    frmSettings *m_settings;
-    frmAbout m_frmAbout;
 
     // Filenames
     QString m_settingsFileName;
@@ -278,18 +274,18 @@ private:
 
     // Flags
     bool m_programLoading;
-//    bool settingsLoading;
+    bool m_settingsLoading;
     bool m_fileChanged;
     bool m_heightMapChanged;
 
-//    bool homing;
-//    bool updateSpindleSpeed;
-//    bool updateParserStatus;
+    //    bool homing;
+    //    bool updateSpindleSpeed;
+    //    bool updateParserStatus;
 
-//    bool reseting;
-//    bool resetCompleted;
-//    bool aborting;
-//    bool statusReceived;
+    //    bool reseting;
+    //    bool resetCompleted;
+    //    bool aborting;
+    //    bool statusReceived;
 
     bool m_heightMapMode;
 
@@ -318,7 +314,7 @@ private:
 
     // Drag & drop
     QPoint m_mousePressPos;
-    
+
     // Settings
     void preloadSettings();
     void loadSettings();
@@ -339,7 +335,7 @@ private:
     void loadFile(QString fileName);
     void loadFile(QList<QString> data);
     bool saveChanges(bool heightMapMode);
-    bool saveProgramToFile(QString fileName, GCodeTableModel *model);
+    bool saveProgramToFile(QString fileName, GCodeTableModel* model);
     void loadHeightMap(QString fileName);
     bool saveHeightMap(QString fileName);
     void clearTable();
@@ -352,7 +348,7 @@ private:
     void updateControlsState();
     void updateLayouts();
     void updateRecentFilesMenu();
-    void updateOverride(SliderBox *slider, int value, char command);
+    void updateOverride(SliderBox* slider, int value, char command);
     void updateJogTitle();
     void addRecentFile(QString fileName);
     void addRecentHeightmap(QString fileName);
@@ -362,15 +358,15 @@ private:
     bool updateHeightMapGrid();
     void updateHeightMapGrid(double arg1);
     void resizeTableHeightMapSections();
-    bool eventFilter(QObject *obj, QEvent *event);
+    bool eventFilter(QObject* obj, QEvent* event);
 
     // Utility
     int bufferLength();
     bool dataIsFloating(QString data);
     bool dataIsEnd(QString data);
     bool dataIsReset(QString data);
-    QTime updateProgramEstimatedTime(QList<LineSegment *> lines);
-    QList<LineSegment *> subdivideSegment(LineSegment *segment);
+    QTime updateProgramEstimatedTime(QList<LineSegment*> lines);
+    QList<LineSegment*> subdivideSegment(LineSegment* segment);
     void jogStep();
     void jogContinuous();
     double toMetric(double value);
@@ -383,13 +379,12 @@ private:
     void completeTransfer();
     QString getLineInitCommands(int row);
 
-    static bool actionLessThan(const QAction *a1, const QAction *a2);
-    static bool actionTextLessThan(const QAction *a1, const QAction *a2);
-    static QScriptValue importExtension(QScriptContext *context, QScriptEngine *engine);
+    static bool actionLessThan(const QAction* a1, const QAction* a2);
+    static bool actionTextLessThan(const QAction* a1, const QAction* a2);
+    static QScriptValue importExtension(QScriptContext* context, QScriptEngine* engine);
 
     //grbl
     void updateStatus(const QString& text, const QString& sheet = QString());
-
 };
 
 typedef QMap<QString, QList<QKeySequence>> ShortcutsMap;

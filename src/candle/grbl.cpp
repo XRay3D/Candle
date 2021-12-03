@@ -8,7 +8,8 @@
 GRBL::GRBL(frmSettings* settings, QObject* parent)
     : QSerialPort(parent)
     , frmMain_(static_cast<frmMain*>(parent))
-    , settings(settings) {
+    , settings(settings)
+{
     // Setup serial port
     setParity(QSerialPort::NoParity);
     setDataBits(QSerialPort::Data8);
@@ -97,11 +98,12 @@ GRBL::GRBL(frmSettings* settings, QObject* parent)
     statusForeColors_[DeviceSleep] = QStringLiteral("white");
 
     // Signals/slots
-    connect(this, SIGNAL(readyRead()), this, SLOT(onSerialPortReadyRead()), Qt::QueuedConnection);
-    connect(this, SIGNAL(error(QSerialPort::SerialPortError)), this, SLOT(onSerialPortError(QSerialPort::SerialPortError)));
+    connect(this, &QSerialPort::readyRead, this, &GRBL::onSerialPortReadyRead, Qt::QueuedConnection);
+    connect(this, static_cast<void (QSerialPort::*)(QSerialPort::SerialPortError)>(&QSerialPort::error), this, &GRBL::onSerialPortError);
 }
 
-void GRBL::onSerialPortReadyRead() {
+void GRBL::onSerialPortReadyRead()
+{
     while (canReadLine()) {
         QString data = readLine().trimmed();
 
@@ -704,7 +706,8 @@ void GRBL::onSerialPortReadyRead() {
     }
 }
 
-void GRBL::onSerialPortError(QSerialPort::SerialPortError error) {
+void GRBL::onSerialPortError(QSerialPort::SerialPortError error)
+{
     static QSerialPort::SerialPortError previousError;
     if (error != QSerialPort::NoError && QSerialPort::error() != previousError) {
         previousError = error;
@@ -716,11 +719,13 @@ void GRBL::onSerialPortError(QSerialPort::SerialPortError error) {
     }
 }
 
-void GRBL::stateQuery() {
+void GRBL::stateQuery()
+{
     write(QByteArray(1, '?'));
 }
 
-void GRBL::homing() {
+void GRBL::homing()
+{
     homing_ = true;
     updateSpindleSpeed = true;
     sendCommand("$H", -1, settings->showUICommands());
@@ -728,7 +733,8 @@ void GRBL::homing() {
 
 GRBL::operator bool() const { return isOpen(); }
 
-void GRBL::openPort() {
+void GRBL::openPort()
+{
     if (open(QIODevice::ReadWrite)) {
         emit updateStatus(tr("Port opened"), QString("background-color: palette(button); color: palette(text);"));
         //        frmMain_->ui->txtStatus->setText(tr("Port opened"));
@@ -737,7 +743,8 @@ void GRBL::openPort() {
     }
 }
 
-void GRBL::grblReset() {
+void GRBL::grblReset()
+{
     write(QByteArray(1, (char)24));
 
     setSenderState(SenderStopped);
@@ -767,7 +774,8 @@ void GRBL::grblReset() {
     frmMain_->updateControlsState();
 }
 
-int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait) {
+int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait)
+{
     // tableIndex:
     // 0...n - commands from g-code program
     // -1 - ui commands
@@ -840,7 +848,8 @@ int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool 
     return 0;
 }
 
-void GRBL::sendCommands(QString commands, int tableIndex) {
+void GRBL::sendCommands(QString commands, int tableIndex)
+{
     QStringList list = commands.split("\n");
 
     bool q = false;
@@ -851,7 +860,8 @@ void GRBL::sendCommands(QString commands, int tableIndex) {
     }
 }
 
-void GRBL::sendNextFileCommands() {
+void GRBL::sendNextFileCommands()
+{
     if (queue.length() > 0)
         return;
 
@@ -869,35 +879,39 @@ void GRBL::sendNextFileCommands() {
     }
 }
 
-QString GRBL::evaluateCommand(QString command) {
+QString GRBL::evaluateCommand(QString command)
+{
     // Evaluate script
     QRegExp sx("\\{([^\\}]+)\\}");
     QScriptValue v;
     QString vs;
     while (sx.indexIn(command) != -1) {
         v = frmMain_->m_scriptEngine.evaluate(sx.cap(1));
-        vs = v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4) :
-                                                   v.toString();
+        vs = v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4)
+                                                 : v.toString();
         command.replace(sx.cap(0), vs);
     }
     return command;
 }
 
-void GRBL::setSenderState(SenderState state) {
+void GRBL::setSenderState(SenderState state)
+{
     if (senderState_ != state) {
         senderState_ = state;
         emit senderStateChanged(state);
     }
 }
 
-void GRBL::setDeviceState(DeviceState state) {
+void GRBL::setDeviceState(DeviceState state)
+{
     if (deviceState_ != state) {
         deviceState_ = state;
         emit deviceStateChanged(state);
     }
 }
 
-void GRBL::close() {
+void GRBL::close()
+{
     QSerialPort::close();
     if (queue.length() > 0) {
         commands.clear();

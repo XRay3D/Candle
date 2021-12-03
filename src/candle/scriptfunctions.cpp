@@ -17,12 +17,12 @@ frmMain* ScriptFunctions::getFrmMain()
 
 void ScriptFunctions::sendCommands(QString commands, int index)
 {
-    m_frmMain->sendCommands(commands, index);
+    m_frmMain->grbl.sendCommands(commands, index);
 }
 
 void ScriptFunctions::sendCommand(QString command, int index)
 {
-    m_frmMain->sendCommand(command, index);
+    m_frmMain->grbl.sendCommand(command, index);
 }
 
 void ScriptFunctions::newFile()
@@ -67,12 +67,12 @@ int ScriptFunctions::bufferLength()
 
 int ScriptFunctions::commandsLength()
 {
-    return m_frmMain->m_commands.length();
+    return m_frmMain->grbl.commands.length();
 }
 
 int ScriptFunctions::queueLength()
 {
-    return m_frmMain->m_queue.length();
+    return m_frmMain->grbl.queue.length();
 }
 
 int ScriptFunctions::buttonSize()

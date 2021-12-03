@@ -99,7 +99,6 @@ public:
     DeviceState deviceState_;
 
     // Flags
-    bool settingsLoading;
     bool homing_;
     bool updateSpindleSpeed;
     bool updateParserStatus;
