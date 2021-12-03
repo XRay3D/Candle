@@ -17,12 +17,12 @@ frmMain* ScriptFunctions::getFrmMain()
 
 void ScriptFunctions::sendCommands(QString commands, int index)
 {
-    m_frmMain->grbl.sendCommands(commands, index);
+    m_frmMain->grbl->sendCommands(commands, index);
 }
 
 void ScriptFunctions::sendCommand(QString command, int index)
 {
-    m_frmMain->grbl.sendCommand(command, index);
+    m_frmMain->grbl->sendCommand(command, index);
 }
 
 void ScriptFunctions::newFile()
