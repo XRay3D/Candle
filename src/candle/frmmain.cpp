@@ -685,7 +685,7 @@ void frmMain::on_cmdFilePause_clicked(bool checked) {
                 ui->cmdFilePause->setChecked(true);
                 return;
             } else if (res == QMessageBox::Ok) {
-                grbl->sendCommands(commands, -1);
+                grbl->sendCommands(commands, GRBL::CmdUi);
             }
 
             grbl->setSenderState(GRBL::SenderTransferring);
@@ -700,9 +700,9 @@ void frmMain::on_cmdFileAbort_clicked() {
     ui->cmdFileAbort->setEnabled(false);
 
     if ((grbl->senderState() == GRBL::SenderPaused) || (grbl->senderState() == GRBL::SenderChangingTool)) {
-        grbl->sendCommand("M2", -1, m_settings->showUICommands(), false);
+        grbl->sendCommand("M2", GRBL::CmdUi, m_settings->showUICommands(), false);
     } else {
-        grbl->sendCommand("M2", -1, m_settings->showUICommands(), true);
+        grbl->sendCommand("M2", GRBL::CmdUi, m_settings->showUICommands(), true);
     }
 }
 
@@ -756,7 +756,7 @@ void frmMain::on_cmdCommandSend_clicked() {
 
     ui->cboCommand->storeText();
     ui->cboCommand->setCurrentText("");
-    grbl->sendCommand(command, -1);
+    grbl->sendCommand(command, GRBL::CmdUi);
 }
 
 void frmMain::on_cmdClearConsole_clicked() {
@@ -770,7 +770,7 @@ void frmMain::on_cmdHome_clicked() {
 void frmMain::on_cmdCheck_clicked(bool checked) {
     if (checked) {
         storeParserState();
-        grbl->sendCommand("$C", -1, m_settings->showUICommands());
+        grbl->sendCommand("$C", GRBL::CmdUi, m_settings->showUICommands());
     } else {
         grbl->aborting = true;
         grbl->grblReset();
@@ -783,15 +783,15 @@ void frmMain::on_cmdReset_clicked() {
 
 void frmMain::on_cmdUnlock_clicked() {
     grbl->updateSpindleSpeed = true;
-    grbl->sendCommand("$X", -1, m_settings->showUICommands());
+    grbl->sendCommand("$X", GRBL::CmdUi, m_settings->showUICommands());
 }
 
 void frmMain::on_cmdHold_clicked(bool checked) {
-    grbl->sendCommand(checked ? "!" : "~", -1, m_settings->showUICommands());
+    grbl->sendCommand(checked ? "!" : "~", GRBL::CmdUi, m_settings->showUICommands());
 }
 
 void frmMain::on_cmdSleep_clicked() {
-    grbl->sendCommand("$SLP", -1, m_settings->showUICommands());
+    grbl->sendCommand("$SLP", GRBL::CmdUi, m_settings->showUICommands());
 }
 
 void frmMain::on_cmdDoor_clicked() {
@@ -819,7 +819,7 @@ void frmMain::on_cmdSpindle_clicked(bool checked) {
     if (ui->cmdHold->isChecked()) {
         grbl->write(QByteArray(1, char(0x9e)));
     } else {
-        grbl->sendCommand(checked ? QString("M3 S%1").arg(ui->slbSpindle->value()) : "M5", -1, m_settings->showUICommands());
+        grbl->sendCommand(checked ? QString("M3 S%1").arg(ui->slbSpindle->value()) : "M5", GRBL::CmdUi, m_settings->showUICommands());
     }
 }
 
@@ -888,10 +888,10 @@ void frmMain::on_chkKeyboardControl_toggled(bool checked) {
 
     // Store/restore coordinate system
     if (checked) {
-        grbl->sendCommand("$G", -2, m_settings->showUICommands());
+        grbl->sendCommand("$G", GRBL::CmdUtility1, m_settings->showUICommands());
     } else {
         if (m_absoluteCoordinates)
-            grbl->sendCommand("G90", -1, m_settings->showUICommands());
+            grbl->sendCommand("G90", GRBL::CmdUi, m_settings->showUICommands());
     }
 
     if ((grbl->senderState() != GRBL::SenderTransferring) && (grbl->senderState() != GRBL::SenderStopping))
@@ -1555,9 +1555,9 @@ void frmMain::onActSendFromLineTriggered() {
             return;
         else if (res == QMessageBox::Ok) {
             // foreach (QString command, commands) {
-            //     grbl->sendCommand(command, -1, m_settings->showUICommands());
+            //     grbl->sendCommand(command, GRBL::CmdUi, m_settings->showUICommands());
             // }
-            grbl->sendCommands(commands, -1);
+            grbl->sendCommands(commands, GRBL::CmdUi);
         }
     }
 
@@ -1626,7 +1626,7 @@ void frmMain::onCboCommandReturnPressed() {
         return;
 
     ui->cboCommand->setCurrentText("");
-    grbl->sendCommand(command, -1);
+    grbl->sendCommand(command, GRBL::CmdUi);
 }
 
 void frmMain::onDockTopLevelChanged(bool topLevel) {
@@ -2422,16 +2422,16 @@ void frmMain::storeParserState() {
 
 void frmMain::restoreParserState() {
     if (!m_storedParserStatus.isEmpty())
-        grbl->sendCommand(m_storedParserStatus, -1, m_settings->showUICommands());
+        grbl->sendCommand(m_storedParserStatus, GRBL::CmdUi, m_settings->showUICommands());
 }
 
 void frmMain::restoreOffsets() {
     // Still have pre-reset working position
     grbl->sendCommand(QString("%4G53G90X%1Y%2Z%3").arg(ui->txtMPosX->value()).arg(ui->txtMPosY->value()).arg(ui->txtMPosZ->value()).arg(m_settings->units() ? "G20" : "G21"),
-        -2, m_settings->showUICommands());
+        GRBL::CmdUtility1, m_settings->showUICommands());
 
     grbl->sendCommand(QString("%4G92X%1Y%2Z%3").arg(ui->txtWPosX->value()).arg(ui->txtWPosY->value()).arg(ui->txtWPosZ->value()).arg(m_settings->units() ? "G20" : "G21"),
-        -2, m_settings->showUICommands());
+        GRBL::CmdUtility1, m_settings->showUICommands());
 }
 
 void frmMain::storeOffsetsVars(QString response) {

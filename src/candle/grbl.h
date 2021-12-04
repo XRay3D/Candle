@@ -60,6 +60,11 @@ public:
         DeviceJog = 13,
         DeviceSleep = 14
     };
+    enum Commands {
+        CmdUi = -1, // -1 - ui commands
+        CmdUtility1 = -2, // -2 - utility commands
+        CmdUtility3 = -3, // -3 - utility commands
+    };
 
     explicit GRBL(frmSettings* settings, QObject* parent = nullptr);
 
@@ -76,8 +81,8 @@ public:
     // Communication
 
     void grblReset();
-    int sendCommand(QString command, int tableIndex = -1, bool showInConsole = true, bool wait = false);
-    void sendCommands(QString commands, int tableIndex = -1);
+    int sendCommand(QString command, Commands tableIndex = CmdUi, bool showInConsole = true, bool wait = false);
+    void sendCommands(QString commands, Commands tableIndex = CmdUi);
     void sendNextFileCommands();
     QString evaluateCommand(QString command);
 

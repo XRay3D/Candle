@@ -362,7 +362,7 @@ void GRBL::onSerialPortReadyRead() {
                         if (frmMain_->ui->chkKeyboardControl->isChecked())
                             frmMain_->m_absoluteCoordinates = response.contains("G90");
                         else if (response.contains("G90"))
-                            sendCommand("G90", -1, m_settings->showUICommands());
+                            sendCommand("G90", GRBL::CmdUi, m_settings->showUICommands());
                     }
 
                     // Process parser status
@@ -427,8 +427,8 @@ void GRBL::onSerialPortReadyRead() {
                         updateParserStatus = true;
 
                         // Query grbl settings
-                        sendCommand("$$", -2, false);
-                        sendCommand("$#", -2, false, true);
+                        sendCommand("$$", GRBL::CmdUtility1, false);
+                        sendCommand("$#", GRBL::CmdUtility1, false, true);
                     }
 
                     // Clear command buffer on "M2" & "M30" command (old firmwares)
@@ -516,7 +516,7 @@ void GRBL::onSerialPortReadyRead() {
                             if ((bufferLength() + cq.command.length() + 1) <= frmMain_->BUFFERLENGTH) {
                                 int r = 0;
                                 if (!cq.command.isEmpty())
-                                    r = sendCommand(cq.command, cq.tableIndex, cq.showInConsole);
+                                    r = sendCommand(cq.command, Commands(cq.tableIndex), cq.showInConsole);
                                 if ((!r && !cq.command.isEmpty() && (queue.isEmpty() || cq.wait)) || queue.isEmpty())
                                     break;
                                 else
@@ -613,7 +613,7 @@ void GRBL::onSerialPortReadyRead() {
                     if ((senderState_ == SenderChangingTool) && !m_settings->pauseToolChange()
                         && commands.isEmpty()) {
                         QString commands = frmMain_->getLineInitCommands(frmMain_->m_fileCommandIndex);
-                        sendCommands(commands, -1);
+                        sendCommands(commands, CmdUi);
                         setSenderState(SenderTransferring);
                     }
 
@@ -719,7 +719,7 @@ void GRBL::stateQuery() {
 void GRBL::homing() {
     homing_ = true;
     updateSpindleSpeed = true;
-    sendCommand("$H", -1, m_settings->showUICommands());
+    sendCommand("$H", GRBL::CmdUi, m_settings->showUICommands());
 }
 
 GRBL::operator bool() const { return isOpen(); }
@@ -763,7 +763,7 @@ void GRBL::grblReset() {
     frmMain_->updateControlsState();
 }
 
-int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait) {
+int GRBL::sendCommand(QString command, Commands tableIndex, bool showInConsole, bool wait) {
     // tableIndex:
     // 0...n - commands from g-code program
     // -1 - ui commands
@@ -829,14 +829,14 @@ int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool 
     // Queue offsets request on G92, G10 commands
     static QRegExp G92("(G92|G10)(?!\\d)");
     if (uncomment.contains(G92))
-        sendCommand("$#", -3, showInConsole, true);
+        sendCommand("$#", GRBL::CmdUtility3, showInConsole, true);
 
     write((command + "\r").toLatin1());
 
     return 0;
 }
 
-void GRBL::sendCommands(QString commands, int tableIndex) {
+void GRBL::sendCommands(QString commands, Commands tableIndex) {
     QStringList list = commands.split("\n");
 
     bool q = false;
@@ -859,7 +859,7 @@ void GRBL::sendNextFileCommands() {
         && !(!commands.isEmpty()
             && GcodePreprocessorUtils::removeComment(commands.last().command).contains(M230))) {
         frmMain_->m_currentModel->setData(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 2), GCodeItem::Sent);
-        sendCommand(command, frmMain_->m_fileCommandIndex, m_settings->showProgramCommands());
+        sendCommand(command, Commands(frmMain_->m_fileCommandIndex), m_settings->showProgramCommands());
         frmMain_->m_fileCommandIndex++;
         command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 1)).toString();
     }
@@ -1026,7 +1026,7 @@ void GRBL::jogStep() {
                         .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
                         .arg(jogFeed_)
                         .arg(m_settings->units() ? "G20" : "G21"),
-            -3, m_settings->showUICommands());
+            CmdUtility3, m_settings->showUICommands());
     }
 }
 
@@ -1082,7 +1082,7 @@ void GRBL::jogContinuous() {
                                 .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
                                 .arg(jogFeed_)
                                 .arg(m_settings->units() ? "G20" : "G21"),
-                    -2, m_settings->showUICommands());
+                    CmdUtility1, m_settings->showUICommands());
             }
             v = jogVec;
         }
@@ -1152,11 +1152,11 @@ void GRBL::onTimerConnection() {
     } else if (!homing_ /* && !reseting*/ && !frmMain_->ui->cmdHold->isChecked() && queue.length() == 0) {
         if (updateSpindleSpeed) {
             updateSpindleSpeed = false;
-            sendCommand(QString("S%1").arg(frmMain_->ui->slbSpindle->value()), -2, m_settings->showUICommands());
+            sendCommand(QString("S%1").arg(frmMain_->ui->slbSpindle->value()), GRBL::CmdUtility1, m_settings->showUICommands());
         }
         if (updateParserStatus) {
             updateParserStatus = false;
-            sendCommand("$G", -3, false);
+            sendCommand("$G", GRBL::CmdUtility3, false);
         }
     }
 }
