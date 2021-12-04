@@ -135,10 +135,7 @@ void GRBL::onSerialPortReadyRead() {
 
                 // Update status
                 if (state != deviceState_) {
-                    frmMain_->ui->txtStatus->setText(statusCaptions_[state]);
-                    frmMain_->ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
-                                                               .arg(statusBackColors_[state])
-                                                               .arg(statusForeColors_[state]));
+                    frmMain_->updateStatus(statusCaptions_[state], QStringLiteral("background-color: %1; color: %2;").arg(statusBackColors_[state]).arg(statusForeColors_[state]));
                 }
 
                 // Update controls
@@ -573,10 +570,8 @@ void GRBL::onSerialPortReadyRead() {
                                 errors.clear();
                                 if (frmMain_->m_senderErrorBox->checkBox()->isChecked())
                                     m_settings->setIgnoreErrors(true);
-                                if (result == QMessageBox::Ignore) {
-                                    write("~");
-                                } else {
-                                    write("~");
+                                write("~");
+                                if (result != QMessageBox::Ignore) {
                                     frmMain_->ui->cmdFileAbort->click();
                                 }
                             }
@@ -726,9 +721,7 @@ GRBL::operator bool() const { return isOpen(); }
 
 void GRBL::openPort() {
     if (open(QIODevice::ReadWrite)) {
-        /*emit*/ frmMain_->updateStatus(tr("Port opened"), QString("background-color: palette(button); color: palette(text);"));
-        //        frmMain_->ui->txtStatus->setText(tr("Port opened"));
-        //        frmMain_->ui->txtStatus->setStyleSheet(QString("background-color: palette(button); color: palette(text);"));
+        /*emit*/ frmMain_->updateStatus(tr("Port opened"), QStringLiteral("background-color: palette(button); color: palette(text);"));
         grblReset();
     }
 }
@@ -914,6 +907,10 @@ int GRBL::bufferLength() {
     return length;
 }
 
+int GRBL::commandsLength() { return commands.length(); }
+
+int GRBL::queueLength() { return queue.length(); }
+
 void GRBL::completeTransfer() {
     // Shadow last segment
     GcodeViewParse* parser = frmMain_->m_currentDrawer->viewParser();
@@ -945,6 +942,10 @@ void GRBL::completeTransfer() {
     timerConnectionStart();
     timerStateQueryStart();
 }
+
+void GRBL::setAborting() { aborting = true; }
+
+void GRBL::setUpdateSpindleSpeed() { updateSpindleSpeed = true; }
 
 void GRBL::setJogStep(double step) { jogStep_ = step; }
 
@@ -1132,6 +1133,7 @@ void GRBL::timerConnectionStop() {
 }
 
 void GRBL::timerConnectionStart(int Interval) {
+    onTimerConnection();
     timerConnectionStop();
     timerConnectionId = startTimer(connectionInterval_ = Interval ? Interval : connectionInterval_);
 }
@@ -1142,6 +1144,7 @@ void GRBL::timerStateQueryStop() {
 }
 
 void GRBL::timerStateQueryStart(int Interval) {
+    onTimerConnection();
     timerStateQueryStop();
     timerStateQueryId = startTimer(queryInterval_ = Interval ? Interval : connectionInterval_);
 }

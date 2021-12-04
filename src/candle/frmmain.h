@@ -169,7 +169,6 @@ private slots:
     void on_mnuViewPanels_aboutToShow();
     void on_dockVisualizer_visibilityChanged(bool visible);
 
-
     void onTableInsertLine();
     void onTableDeleteLines();
     void onTableCellChanged(QModelIndex i1, QModelIndex i2);
@@ -178,7 +177,6 @@ private slots:
     void onOverrideChanged();
     void onActRecentFileTriggered();
     void onActSendFromLineTriggered();
-    void onSlbSpindleValueUserChanged();
     void onSlbSpindleValueChanged();
     void onCboCommandReturnPressed();
     void onDockTopLevelChanged(bool topLevel);
@@ -188,19 +186,19 @@ private slots:
     void updateHeightMapInterpolationDrawer(bool reset = false);
     void placeVisualizerButtons();
 
-    void on_cboJogStep_currentTextChanged(const QString &arg1);
-    void on_cboJogFeed_currentTextChanged(const QString &arg1);
+    void on_cboJogStep_currentTextChanged(const QString& arg1);
+    void on_cboJogFeed_currentTextChanged(const QString& arg1);
 
 protected:
-    void showEvent(QShowEvent* se);
-    void hideEvent(QHideEvent* he);
-    void resizeEvent(QResizeEvent* re);
-    void timerEvent(QTimerEvent*);
-    void closeEvent(QCloseEvent* ce);
-    void dragEnterEvent(QDragEnterEvent* dee);
-    void dropEvent(QDropEvent* de);
-    bool eventFilter(QObject* obj, QEvent* event);
-    QMenu* createPopupMenu() override;
+    void showEvent(QShowEvent* se) Q_DECL_OVERRIDE;
+    void hideEvent(QHideEvent* he) Q_DECL_OVERRIDE;
+    void resizeEvent(QResizeEvent* re) Q_DECL_OVERRIDE;
+    void timerEvent(QTimerEvent*) Q_DECL_OVERRIDE;
+    void closeEvent(QCloseEvent* ce) Q_DECL_OVERRIDE;
+    void dragEnterEvent(QDragEnterEvent* dee) Q_DECL_OVERRIDE;
+    void dropEvent(QDropEvent* de) Q_DECL_OVERRIDE;
+    bool eventFilter(QObject* obj, QEvent* event) Q_DECL_OVERRIDE;
+    QMenu* createPopupMenu() Q_DECL_OVERRIDE;
 
 private:
     static const int BUFFERLENGTH = 127;

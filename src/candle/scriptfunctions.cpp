@@ -67,12 +67,12 @@ int ScriptFunctions::bufferLength()
 
 int ScriptFunctions::commandsLength()
 {
-    return m_frmMain->grbl->commands.length();
+    return m_frmMain->grbl->commandsLength();
 }
 
 int ScriptFunctions::queueLength()
 {
-    return m_frmMain->grbl->queue.length();
+    return m_frmMain->grbl->queueLength();
 }
 
 int ScriptFunctions::buttonSize()

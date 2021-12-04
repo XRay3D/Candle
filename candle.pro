@@ -1,8 +1,8 @@
 TEMPLATE = subdirs
  
 SUBDIRS = \
+    src/designerplugins \
     src/candle \
-#    src/designerplugins \
 #    src/candleplugins \
 #    src/scriptbindings
             

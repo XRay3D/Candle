@@ -91,7 +91,12 @@ public:
     void setDeviceState(DeviceState state);
     void updateOverride(SliderBox* slider, int value, char command);
     int bufferLength();
+    int commandsLength();
+    int queueLength();
     void completeTransfer();
+    void setAborting();
+    void setUpdateSpindleSpeed();
+
     // Jog
     void setJogStep(double step);
     void setJogFeed(double feed);
@@ -113,26 +118,27 @@ public:
 
     void jogStop();
 
-    QVector3D m_jogVector;
-    double jogStep_;
-    double jogFeed_;
-
     SenderState senderState() const;
     DeviceState deviceState() const;
 
     void close() Q_DECL_OVERRIDE;
     void updatePort();
-
-    //private://////////////////////////
-    frmMain* frmMain_;
-    frmSettings* m_settings;
-
     // Timers
     void setQueryInterval(int queryInterval);
     void timerConnectionStop();
     void timerConnectionStart(int Interval = 0);
     void timerStateQueryStop();
     void timerStateQueryStart(int Interval = 0);
+
+private: //////////////////////////
+    frmMain* frmMain_;
+    frmSettings* m_settings;
+    // Jog
+    QVector3D m_jogVector;
+    double jogStep_;
+    double jogFeed_;
+
+    // Timers
     int queryInterval_ = 100;
     int connectionInterval_ = 1000;
     int timerConnectionId = 0;

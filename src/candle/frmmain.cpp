@@ -240,7 +240,7 @@ frmMain::frmMain(QWidget* parent)
     ui->slbSpindle->setTitle(tr("Speed:"));
     ui->slbSpindle->setCheckable(false);
     ui->slbSpindle->setChecked(true);
-    connect(ui->slbSpindle, &SliderBox::valueUserChanged, this, &frmMain::onSlbSpindleValueUserChanged);
+    connect(ui->slbSpindle, &SliderBox::valueUserChanged, grbl, &GRBL::setUpdateSpindleSpeed);
     connect(ui->slbSpindle, &SliderBox::valueChanged, this, &frmMain::onSlbSpindleValueChanged);
 
     grbl->updatePort();
@@ -772,7 +772,7 @@ void frmMain::on_cmdCheck_clicked(bool checked) {
         storeParserState();
         grbl->sendCommand("$C", GRBL::CmdUi, m_settings->showUICommands());
     } else {
-        grbl->aborting = true;
+        grbl->setAborting();
         grbl->grblReset();
     };
 }
@@ -782,7 +782,7 @@ void frmMain::on_cmdReset_clicked() {
 }
 
 void frmMain::on_cmdUnlock_clicked() {
-    grbl->updateSpindleSpeed = true;
+    grbl->setUpdateSpindleSpeed();
     grbl->sendCommand("$X", GRBL::CmdUi, m_settings->showUICommands());
 }
 
@@ -1611,10 +1611,6 @@ void frmMain::onActSendFromLineTriggered() {
     grbl->sendNextFileCommands();
 }
 
-void frmMain::onSlbSpindleValueUserChanged() {
-    grbl->updateSpindleSpeed = true;
-}
-
 void frmMain::onSlbSpindleValueChanged() {
     if (!ui->grpSpindle->isChecked() && ui->cmdSpindle->isChecked())
         ui->grpSpindle->setTitle(tr("Spindle") + QString(tr(" (%1)")).arg(ui->slbSpindle->value()));
@@ -1850,9 +1846,9 @@ void frmMain::loadSettings() {
     int b = (w - ui->grpControl->layout()->margin() * 2 - ui->grpControl->layout()->spacing() * 3) / 4 * 0.8;
     int c = b * 0.8;
     setStyleSheet(styleSheet() + QString("\nStyledToolButton[adjustSize='true'] {\n\
-	    min-width: %1px;\n\
-	    min-height: %1px;\n\
-	    qproperty-iconSize: %2px;\n\
+            min-width: %1px;\n\
+            min-height: %1px;\n\
+            qproperty-iconSize: %2px;\n\
         }")
                                      .arg(b)
                                      .arg(c));
