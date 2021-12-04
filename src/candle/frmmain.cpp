@@ -77,8 +77,6 @@ frmMain::frmMain(QWidget* parent)
     m_heightMapChanged = false;
     m_fileChanged = false;
     m_heightMapMode = false;
-    m_lastDrawnLineIndex = 0;
-    m_fileProcessedCommandIndex = 0;
     m_programLoading = false;
     m_currentModel = &m_programModel;
 
@@ -671,7 +669,7 @@ void frmMain::on_cmdFilePause_clicked(bool checked) {
         ui->cmdFilePause->setEnabled(false);
     } else {
         if (grbl->senderState() == GRBL::SenderChangingTool) {
-            QString commands = getLineInitCommands(m_fileCommandIndex);
+            QString commands = getLineInitCommands(grbl->fileCommandIndex());
 
             QMessageBox box(this);
             box.setIcon(QMessageBox::Information);
@@ -707,10 +705,7 @@ void frmMain::on_cmdFileAbort_clicked() {
 }
 
 void frmMain::on_cmdFileReset_clicked() {
-    m_fileCommandIndex = 0;
-    m_fileProcessedCommandIndex = 0;
-    m_lastDrawnLineIndex = 0;
-    m_probeIndex = -1;
+    grbl->fileReset();
 
     if (!m_heightMapMode) {
         QList<LineSegment*> list = m_viewParser.getLineSegmentList();
@@ -1223,9 +1218,9 @@ void frmMain::on_cmdHeightMapMode_toggled(bool checked) {
     m_heightMapMode = checked;
 
     // Reset file progress
-    m_fileCommandIndex = 0;
-    m_fileProcessedCommandIndex = 0;
-    m_lastDrawnLineIndex = 0;
+    grbl->setFileCommandIndex(0);
+    grbl->setFileProcessedCommandIndex(0);
+    grbl->setLastDrawnLineIndex(0);
 
     // Reset/restore g-code program modification on edit mode enter/exit
     if (ui->chkHeightMapUse->isChecked()) {
@@ -1259,7 +1254,7 @@ void frmMain::on_cmdHeightMapMode_toggled(bool checked) {
     // Shadow toolpath
     QList<LineSegment*> list = m_viewParser.getLineSegmentList();
     QList<int> indexes;
-    for (int i = m_lastDrawnLineIndex; i < list.count(); i++) {
+    for (int i = grbl->lastDrawnLineIndex(); i < list.count(); i++) {
         list[i]->setDrawn(checked);
         list[i]->setIsHightlight(false);
         indexes.append(i);
@@ -1561,10 +1556,10 @@ void frmMain::onActSendFromLineTriggered() {
         }
     }
 
-    m_fileCommandIndex = commandIndex;
-    m_fileProcessedCommandIndex = commandIndex;
-    m_lastDrawnLineIndex = 0;
-    m_probeIndex = -1;
+    grbl->setFileCommandIndex(commandIndex);
+    grbl->setFileProcessedCommandIndex(commandIndex);
+    grbl->setLastDrawnLineIndex(0);
+    grbl->setProbeIndex(-1);
 
     QList<LineSegment*> list = m_viewParser.getLineSegmentList();
 
@@ -1606,8 +1601,8 @@ void frmMain::onActSendFromLineTriggered() {
     updateControlsState();
     ui->cmdFilePause->setFocus();
 
-    m_fileCommandIndex = commandIndex;
-    m_fileProcessedCommandIndex = commandIndex;
+    grbl->setFileCommandIndex(commandIndex);
+    grbl->setFileProcessedCommandIndex(commandIndex);
     grbl->sendNextFileCommands();
 }
 

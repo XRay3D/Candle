@@ -17,13 +17,21 @@ GRBL::GRBL(frmSettings* settings, QObject* parent)
     setStopBits(QSerialPort::OneStop);
 
     homing_ = false;
-    updateSpindleSpeed = false;
-    updateParserStatus = false;
+    updateSpindleSpeed_ = false;
+    updateParserStatus_ = false;
 
     reseting = false;
     resetCompleted = true;
     aborting = false;
     statusReceived = false;
+
+    //    stateQueryInterval_ = 100;
+    //    connectionInterval_ = 1000;
+    //    timerConnectionId = 0;
+    //    timerStateQueryId = 0;
+
+    m_fileProcessedCommandIndex = 0;
+    m_lastDrawnLineIndex = 0;
 
     deviceState_ = DeviceUnknown;
     senderState_ = SenderUnknown;
@@ -226,13 +234,13 @@ void GRBL::onSerialPortReadyRead() {
                 QList<int> drawnLines;
                 QList<LineSegment*> list = parser->getLineSegmentList();
 
-                for (int i = frmMain_->m_lastDrawnLineIndex; i < list.count()
+                for (int i = m_lastDrawnLineIndex; i < list.count()
                      && list.at(i)->getLineNumber()
-                         <= (frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileProcessedCommandIndex, 4)).toInt() + 1);
+                         <= (frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(m_fileProcessedCommandIndex, 4)).toInt() + 1);
                      i++) {
                     if (list.at(i)->contains(toolPosition)) {
                         toolOntoolpath = true;
-                        frmMain_->m_lastDrawnLineIndex = i;
+                        m_lastDrawnLineIndex = i;
                         break;
                     }
                     drawnLines << i;
@@ -454,16 +462,15 @@ void GRBL::onSerialPortReadyRead() {
                         }
 
                         static double firstZ;
-                        if (frmMain_->m_probeIndex == -1) {
+                        if (m_probeIndex == -1) {
                             firstZ = z;
-                            z = 0;
                         } else {
                             // Calculate delta Z
                             z -= firstZ;
 
                             // Calculate table indexes
-                            int row = (frmMain_->m_probeIndex / frmMain_->m_heightMapModel.columnCount());
-                            int column = frmMain_->m_probeIndex - row * frmMain_->m_heightMapModel.columnCount();
+                            int row = (m_probeIndex / frmMain_->m_heightMapModel.columnCount());
+                            int column = m_probeIndex - row * frmMain_->m_heightMapModel.columnCount();
                             if (row % 2)
                                 column = frmMain_->m_heightMapModel.columnCount() - 1 - column;
 
@@ -473,7 +480,7 @@ void GRBL::onSerialPortReadyRead() {
                             frmMain_->updateHeightMapInterpolationDrawer();
                         }
 
-                        frmMain_->m_probeIndex++;
+                        m_probeIndex++;
                     }
 
                     // Change state query time on check mode on
@@ -502,15 +509,14 @@ void GRBL::onSerialPortReadyRead() {
                         tc.endEditBlock();
 
                         if (scrolledDown)
-                            frmMain_->ui->txtConsole->verticalScrollBar()->setValue(
-                                frmMain_->ui->txtConsole->verticalScrollBar()->maximum());
+                            txtConsole->verticalScrollBar()->setValue(txtConsole->verticalScrollBar()->maximum());
                     }
 
                     // Check queue
                     if (queue.length() > 0) {
                         CommandQueue cq = queue.takeFirst();
                         while (true) {
-                            if ((bufferLength() + cq.command.length() + 1) <= frmMain_->BUFFERLENGTH) {
+                            if ((bufferLength() + cq.command.length() + 1) <= BUFFERLENGTH) {
                                 int r = 0;
                                 if (!cq.command.isEmpty())
                                     r = sendCommand(cq.command, Commands(cq.tableIndex), cq.showInConsole);
@@ -532,7 +538,7 @@ void GRBL::onSerialPortReadyRead() {
                             frmMain_->m_currentModel->setData(frmMain_->m_currentModel->index(ca.tableIndex, 2), GCodeItem::Processed);
                             frmMain_->m_currentModel->setData(frmMain_->m_currentModel->index(ca.tableIndex, 3), response);
 
-                            frmMain_->m_fileProcessedCommandIndex = ca.tableIndex;
+                            m_fileProcessedCommandIndex = ca.tableIndex;
 
                             if (frmMain_->ui->chkAutoScroll->isChecked() && ca.tableIndex != -1) {
                                 frmMain_->ui->tblProgram->scrollTo(frmMain_->m_currentModel->index(ca.tableIndex + 1, 0)); // TODO: Update by timer
@@ -544,7 +550,7 @@ void GRBL::onSerialPortReadyRead() {
 #ifdef WINDOWS
                         if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
                             if (frmMain_->m_taskBarProgress)
-                                frmMain_->m_taskBarProgress->setValue(frmMain_->m_fileProcessedCommandIndex);
+                                frmMain_->m_taskBarProgress->setValue(m_fileProcessedCommandIndex);
                         }
 #endif
                         // Process error messages
@@ -578,13 +584,13 @@ void GRBL::onSerialPortReadyRead() {
                         }
 
                         // Check transfer complete (last row always blank, last command row = rowcount - 2)
-                        if ((frmMain_->m_fileProcessedCommandIndex == frmMain_->m_currentModel->rowCount() - 2) || uncomment.contains(QRegExp("(M0*2|M30)(?!\\d)"))) {
+                        if ((m_fileProcessedCommandIndex == frmMain_->m_currentModel->rowCount() - 2) || uncomment.contains(QRegExp("(M0*2|M30)(?!\\d)"))) {
                             if (deviceState_ == DeviceRun) {
                                 setSenderState(SenderStopping);
                             } else {
                                 completeTransfer();
                             }
-                        } else if ((frmMain_->m_fileCommandIndex < frmMain_->m_currentModel->rowCount())
+                        } else if ((m_fileCommandIndex < frmMain_->m_currentModel->rowCount())
                             && (senderState_ == SenderTransferring)
                             && !holding) {
                             // Send next program commands
@@ -607,7 +613,7 @@ void GRBL::onSerialPortReadyRead() {
                     }
                     if ((senderState_ == SenderChangingTool) && !m_settings->pauseToolChange()
                         && commands.isEmpty()) {
-                        QString commands = frmMain_->getLineInitCommands(frmMain_->m_fileCommandIndex);
+                        QString commands = frmMain_->getLineInitCommands(m_fileCommandIndex);
                         sendCommands(commands, CmdUi);
                         setSenderState(SenderTransferring);
                     }
@@ -627,19 +633,19 @@ void GRBL::onSerialPortReadyRead() {
                         GcodeViewParse* parser = frmMain_->m_currentDrawer->viewParser();
                         QList<LineSegment*> list = parser->getLineSegmentList();
 
-                        if ((senderState_ != SenderStopping) && frmMain_->m_fileProcessedCommandIndex < frmMain_->m_currentModel->rowCount() - 1) {
+                        if ((senderState_ != SenderStopping) && m_fileProcessedCommandIndex < frmMain_->m_currentModel->rowCount() - 1) {
                             int i;
                             QList<int> drawnLines;
 
-                            for (i = frmMain_->m_lastDrawnLineIndex; i < list.count()
-                                 && list.at(i)->getLineNumber()
-                                     <= (frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileProcessedCommandIndex, 4)).toInt());
+                            for (i = m_lastDrawnLineIndex;
+                                 i < list.count()
+                                 && list.at(i)->getLineNumber() <= (frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(m_fileProcessedCommandIndex, 4)).toInt());
                                  i++) {
                                 drawnLines << i;
                             }
 
                             if (!drawnLines.isEmpty() && (i < list.count())) {
-                                frmMain_->m_lastDrawnLineIndex = i;
+                                m_lastDrawnLineIndex = i;
                                 QVector3D vec = list.at(i)->getEnd();
                                 frmMain_->m_toolDrawer.setToolPosition(vec);
                             }
@@ -670,16 +676,16 @@ void GRBL::onSerialPortReadyRead() {
             } else {
                 // Unprocessed responses
                 // Handle hardware reset
-                if (frmMain_->dataIsReset(data)) {
+                if (dataIsReset(data)) {
                     setSenderState(SenderStopped);
                     setDeviceState(DeviceUnknown);
 
-                    frmMain_->m_fileCommandIndex = 0;
+                    m_fileCommandIndex = 0;
 
                     reseting = false;
                     homing_ = false;
 
-                    updateParserStatus = true;
+                    updateParserStatus_ = true;
                     statusReceived = true;
 
                     commands.clear();
@@ -767,7 +773,7 @@ int GRBL::sendCommand(QString command, Commands tableIndex, bool showInConsole, 
         return 0;
 
     // Commands queue
-    if (wait || (bufferLength() + command.length() + 1) > frmMain_->BUFFERLENGTH) {
+    if (wait || (bufferLength() + command.length() + 1) > BUFFERLENGTH) {
         CommandQueue cq;
 
         cq.command = command;
@@ -844,17 +850,16 @@ void GRBL::sendNextFileCommands() {
     if (queue.length() > 0)
         return;
 
-    QString command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 1)).toString();
+    QString command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(m_fileCommandIndex, 1)).toString();
     static QRegExp M230("(M0*2|M30)(?!\\d)");
 
-    while ((bufferLength() + command.length() + 1) <= frmMain_->BUFFERLENGTH
-        && frmMain_->m_fileCommandIndex < frmMain_->m_currentModel->rowCount() - 1
-        && !(!commands.isEmpty()
-            && GcodePreprocessorUtils::removeComment(commands.last().command).contains(M230))) {
-        frmMain_->m_currentModel->setData(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 2), GCodeItem::Sent);
-        sendCommand(command, Commands(frmMain_->m_fileCommandIndex), m_settings->showProgramCommands());
-        frmMain_->m_fileCommandIndex++;
-        command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 1)).toString();
+    while ((bufferLength() + command.length() + 1) <= BUFFERLENGTH
+        && m_fileCommandIndex < frmMain_->m_currentModel->rowCount() - 1
+        && !(!commands.isEmpty() && GcodePreprocessorUtils::removeComment(commands.last().command).contains(M230))) {
+        frmMain_->m_currentModel->setData(frmMain_->m_currentModel->index(m_fileCommandIndex, 2), GCodeItem::Sent);
+        sendCommand(command, Commands(m_fileCommandIndex), m_settings->showProgramCommands());
+        m_fileCommandIndex++;
+        command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(m_fileCommandIndex, 1)).toString();
     }
 }
 
@@ -915,16 +920,16 @@ void GRBL::completeTransfer() {
     // Shadow last segment
     GcodeViewParse* parser = frmMain_->m_currentDrawer->viewParser();
     QList<LineSegment*> list = parser->getLineSegmentList();
-    if (frmMain_->m_lastDrawnLineIndex < list.count()) {
-        list[frmMain_->m_lastDrawnLineIndex]->setDrawn(true);
-        frmMain_->m_currentDrawer->update(QList<int>() << frmMain_->m_lastDrawnLineIndex);
+    if (m_lastDrawnLineIndex < list.count()) {
+        list[m_lastDrawnLineIndex]->setDrawn(true);
+        frmMain_->m_currentDrawer->update(QList<int>() << m_lastDrawnLineIndex);
     }
 
     // Update state
     setSenderState(GRBL::SenderStopped);
-    frmMain_->m_fileProcessedCommandIndex = 0;
-    frmMain_->m_lastDrawnLineIndex = 0;
-    frmMain_->m_storedParserStatus.clear();
+    m_fileProcessedCommandIndex = 0;
+    m_lastDrawnLineIndex = 0;
+    m_storedParserStatus.clear();
 
     frmMain_->updateControlsState();
 

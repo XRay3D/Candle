@@ -201,7 +201,6 @@ protected:
     QMenu* createPopupMenu() Q_DECL_OVERRIDE;
 
 private:
-    static const int BUFFERLENGTH = 127;
     static const int PROGRESSMINLINES = 10000;
     static const int PROGRESSSTEP = 1000;
 
@@ -277,14 +276,6 @@ private:
     //    bool statusReceived;
 
     bool m_heightMapMode;
-
-    // Indices
-    int m_fileCommandIndex;
-    int m_fileProcessedCommandIndex;
-    int m_probeIndex;
-
-    // Current values
-    int m_lastDrawnLineIndex;
 
     // Keyboard
     bool m_absoluteCoordinates;

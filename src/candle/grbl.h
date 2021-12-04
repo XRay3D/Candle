@@ -158,13 +158,24 @@ private: //////////////////////////
 
     // Flags
     bool homing_;
-    bool updateSpindleSpeed;
-    bool updateParserStatus;
+    bool updateSpindleSpeed_;
+    bool updateParserStatus_;
 
     bool reseting;
     bool resetCompleted;
     bool aborting;
     bool statusReceived;
+
+    // Stored parser params
+    QString m_storedParserStatus;
+
+    // Indices
+    int m_fileCommandIndex;
+    int m_fileProcessedCommandIndex;
+    int m_probeIndex;
+
+    // Current values
+    int m_lastDrawnLineIndex;
 
     QMap<GRBL::DeviceState, QString> deviceStatuses_;
     QMap<GRBL::DeviceState, QString> statusCaptions_;
