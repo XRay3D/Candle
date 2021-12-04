@@ -3,9 +3,11 @@
 
 #include "qglobal.h"
 #include <QMap>
+#include <QTimer>
 #include <QVector3D>
 #include <QtSerialPort/QSerialPort>
 
+class SliderBox;
 struct CommandAttributes {
     int length;
     int consoleIndex;
@@ -82,7 +84,9 @@ public:
     // Utility
     void setSenderState(SenderState state);
     void setDeviceState(DeviceState state);
-
+    void updateOverride(SliderBox* slider, int value, char command);
+    int bufferLength();
+    void completeTransfer();
     // Jog
     void setJogStep(double step);
     void setJogFeed(double feed);
@@ -117,6 +121,22 @@ public:
     //private://////////////////////////
     frmMain* frmMain_;
     frmSettings* m_settings;
+
+    // Timers
+    void setQueryInterval(int queryInterval);
+    void timerConnectionStop();
+    void timerConnectionStart(int Interval = 0);
+    void timerStateQueryStop();
+    void timerStateQueryStart(int Interval = 0);
+    int queryInterval_ = 100;
+    int connectionInterval_ = 1000;
+    int timerConnectionId = 0;
+    int timerStateQueryId = 0;
+    //    QTimer m_timerConnection;
+    //    QTimer m_timerStateQuery;
+    void onTimerConnection();
+    void onTimerStateQuery();
+
     // Queues
     QList<CommandAttributes> commands;
     QList<CommandQueue> queue;
@@ -139,6 +159,10 @@ public:
     QMap<GRBL::DeviceState, QString> statusCaptions_;
     QMap<GRBL::DeviceState, QString> statusBackColors_;
     QMap<GRBL::DeviceState, QString> statusForeColors_;
+
+    // QObject interface
+protected:
+    void timerEvent(QTimerEvent* event) override;
 };
 
 #endif // GRBL_H

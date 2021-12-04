@@ -140,6 +140,7 @@ private slots:
     void on_cmdLeft_clicked();
     void on_cmdIsometric_clicked();
     void on_cmdFit_clicked();
+    void on_cmdToggleProjection_clicked();
     void on_grpOverriding_toggled(bool checked);
     void on_grpSpindle_toggled(bool checked);
     void on_grpJog_toggled(bool checked);
@@ -168,8 +169,7 @@ private slots:
     void on_mnuViewPanels_aboutToShow();
     void on_dockVisualizer_visibilityChanged(bool visible);
 
-    void onTimerConnection();
-    void onTimerStateQuery();
+
     void onTableInsertLine();
     void onTableDeleteLines();
     void onTableCellChanged(QModelIndex i1, QModelIndex i2);
@@ -199,6 +199,7 @@ protected:
     void closeEvent(QCloseEvent* ce);
     void dragEnterEvent(QDragEnterEvent* dee);
     void dropEvent(QDropEvent* de);
+    bool eventFilter(QObject* obj, QEvent* event);
     QMenu* createPopupMenu() override;
 
 private:
@@ -256,8 +257,6 @@ private:
     QStringList m_recentHeightmaps;
 
     // Timers
-    QTimer m_timerConnection;
-    QTimer m_timerStateQuery;
     QBasicTimer m_timerToolAnimation;
     QTime m_startTime;
 
@@ -337,7 +336,7 @@ private:
     void updateControlsState();
     void updateLayouts();
     void updateRecentFilesMenu();
-    void updateOverride(SliderBox* slider, int value, char command);
+
     void updateJogTitle();
     void addRecentFile(QString fileName);
     void addRecentHeightmap(QString fileName);
@@ -347,10 +346,8 @@ private:
     bool updateHeightMapGrid();
     void updateHeightMapGrid(double arg1);
     void resizeTableHeightMapSections();
-    bool eventFilter(QObject* obj, QEvent* event);
 
     // Utility
-    int bufferLength();
     bool dataIsFloating(QString data);
     bool dataIsEnd(QString data);
     bool dataIsReset(QString data);
@@ -362,7 +359,6 @@ private:
     bool isHeightmapFile(QString fileName);
     int buttonSize();
 
-    void completeTransfer();
     QString getLineInitCommands(int row);
 
     static bool actionLessThan(const QAction* a1, const QAction* a2);

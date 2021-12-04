@@ -107,7 +107,7 @@ void GRBL::onSerialPortReadyRead() {
                 continue;
             else {
                 reseting = false;
-                frmMain_->m_timerStateQuery.setInterval(m_settings->queryStateTime());
+                setQueryInterval(m_settings->queryStateTime());
             }
         }
 
@@ -156,7 +156,7 @@ void GRBL::onSerialPortReadyRead() {
 
                 // Test for job complete
                 if ((senderState_ == SenderStopping) && ((state == DeviceIdle && deviceState_ == DeviceRun) || state == DeviceCheck)) {
-                    frmMain_->completeTransfer();
+                    completeTransfer();
                 }
 
                 // Abort
@@ -253,8 +253,8 @@ void GRBL::onSerialPortReadyRead() {
             // Get overridings
             static QRegExp ov("Ov:([^,]*),([^,]*),([^,^>^|]*)");
             if (ov.indexIn(data) != -1) {
-                frmMain_->updateOverride(frmMain_->ui->slbFeedOverride, ov.cap(1).toInt(), '\x91');
-                frmMain_->updateOverride(frmMain_->ui->slbSpindleOverride, ov.cap(3).toInt(), '\x9a');
+                updateOverride(frmMain_->ui->slbFeedOverride, ov.cap(1).toInt(), '\x91');
+                updateOverride(frmMain_->ui->slbSpindleOverride, ov.cap(3).toInt(), '\x9a');
 
                 int rapid = ov.cap(2).toInt();
                 frmMain_->ui->slbRapidOverride->setCurrentValue(rapid);
@@ -481,7 +481,7 @@ void GRBL::onSerialPortReadyRead() {
 
                     // Change state query time on check mode on
                     if (uncomment.contains(QRegExp("$[cC]"))) {
-                        frmMain_->m_timerStateQuery.setInterval(response.contains("Enable") ? 1000 : m_settings->queryStateTime());
+                        setQueryInterval(response.contains("Enable") ? 1000 : m_settings->queryStateTime());
                     }
 
                     // Add response to console
@@ -513,7 +513,7 @@ void GRBL::onSerialPortReadyRead() {
                     if (queue.length() > 0) {
                         CommandQueue cq = queue.takeFirst();
                         while (true) {
-                            if ((frmMain_->bufferLength() + cq.command.length() + 1) <= frmMain_->BUFFERLENGTH) {
+                            if ((bufferLength() + cq.command.length() + 1) <= frmMain_->BUFFERLENGTH) {
                                 int r = 0;
                                 if (!cq.command.isEmpty())
                                     r = sendCommand(cq.command, cq.tableIndex, cq.showInConsole);
@@ -587,7 +587,7 @@ void GRBL::onSerialPortReadyRead() {
                             if (deviceState_ == DeviceRun) {
                                 setSenderState(SenderStopping);
                             } else {
-                                frmMain_->completeTransfer();
+                                completeTransfer();
                             }
                         } else if ((frmMain_->m_fileCommandIndex < frmMain_->m_currentModel->rowCount())
                             && (senderState_ == SenderTransferring)
@@ -774,7 +774,7 @@ int GRBL::sendCommand(QString command, int tableIndex, bool showInConsole, bool 
         return 0;
 
     // Commands queue
-    if (wait || (frmMain_->bufferLength() + command.length() + 1) > frmMain_->BUFFERLENGTH) {
+    if (wait || (bufferLength() + command.length() + 1) > frmMain_->BUFFERLENGTH) {
         CommandQueue cq;
 
         cq.command = command;
@@ -854,7 +854,7 @@ void GRBL::sendNextFileCommands() {
     QString command = frmMain_->m_currentModel->data(frmMain_->m_currentModel->index(frmMain_->m_fileCommandIndex, 1)).toString();
     static QRegExp M230("(M0*2|M30)(?!\\d)");
 
-    while ((frmMain_->bufferLength() + command.length() + 1) <= frmMain_->BUFFERLENGTH
+    while ((bufferLength() + command.length() + 1) <= frmMain_->BUFFERLENGTH
         && frmMain_->m_fileCommandIndex < frmMain_->m_currentModel->rowCount() - 1
         && !(!commands.isEmpty()
             && GcodePreprocessorUtils::removeComment(commands.last().command).contains(M230))) {
@@ -891,6 +891,59 @@ void GRBL::setDeviceState(DeviceState state) {
         deviceState_ = state;
         emit deviceStateChanged(state);
     }
+}
+
+void GRBL::updateOverride(SliderBox* slider, int value, char command) {
+    slider->setCurrentValue(value);
+
+    int target = slider->isChecked() ? slider->value() : 100;
+    bool smallStep = abs(target - slider->currentValue()) < 10 || m_settings->queryStateTime() < 100;
+
+    if /*  */ (slider->currentValue() < target) {
+        write(QByteArray(1, char(smallStep ? command + 2 : command)));
+    } else if (slider->currentValue() > target) {
+        write(QByteArray(1, char(smallStep ? command + 3 : command + 1)));
+    }
+}
+
+int GRBL::bufferLength() {
+    int length = 0;
+    foreach (CommandAttributes ca, commands) {
+        length += ca.length;
+    }
+    return length;
+}
+
+void GRBL::completeTransfer() {
+    // Shadow last segment
+    GcodeViewParse* parser = frmMain_->m_currentDrawer->viewParser();
+    QList<LineSegment*> list = parser->getLineSegmentList();
+    if (frmMain_->m_lastDrawnLineIndex < list.count()) {
+        list[frmMain_->m_lastDrawnLineIndex]->setDrawn(true);
+        frmMain_->m_currentDrawer->update(QList<int>() << frmMain_->m_lastDrawnLineIndex);
+    }
+
+    // Update state
+    setSenderState(GRBL::SenderStopped);
+    frmMain_->m_fileProcessedCommandIndex = 0;
+    frmMain_->m_lastDrawnLineIndex = 0;
+    frmMain_->m_storedParserStatus.clear();
+
+    frmMain_->updateControlsState();
+
+    // Send end commands
+    sendCommands(m_settings->endCommands());
+
+    // Show message box
+    qApp->beep();
+    timerStateQueryStop();
+    timerConnectionStop();
+
+    QMessageBox::information(frmMain_, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1").arg(frmMain_->ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
+
+    setQueryInterval(m_settings->queryStateTime());
+    timerConnectionStart();
+    timerStateQueryStart();
 }
 
 void GRBL::setJogStep(double step) { jogStep_ = step; }
@@ -1064,4 +1117,62 @@ void GRBL::updatePort() {
         setBaudRate(baud);
         //        openPort();
     }
+}
+
+void GRBL::setQueryInterval(int queryInterval) {
+    if (timerStateQueryId)
+        timerStateQueryStart(queryInterval);
+    else
+        queryInterval_ = queryInterval;
+}
+
+void GRBL::timerConnectionStop() {
+    if (timerConnectionId)
+        killTimer(timerConnectionId), timerConnectionId = 0;
+}
+
+void GRBL::timerConnectionStart(int Interval) {
+    timerConnectionStop();
+    timerConnectionId = startTimer(connectionInterval_ = Interval ? Interval : connectionInterval_);
+}
+
+void GRBL::timerStateQueryStop() {
+    if (timerStateQueryId)
+        killTimer(timerStateQueryId), timerStateQueryId = 0;
+}
+
+void GRBL::timerStateQueryStart(int Interval) {
+    timerStateQueryStop();
+    timerStateQueryId = startTimer(queryInterval_ = Interval ? Interval : connectionInterval_);
+}
+
+void GRBL::onTimerConnection() {
+    if (!*this) {
+        openPort();
+    } else if (!homing_ /* && !reseting*/ && !frmMain_->ui->cmdHold->isChecked() && queue.length() == 0) {
+        if (updateSpindleSpeed) {
+            updateSpindleSpeed = false;
+            sendCommand(QString("S%1").arg(frmMain_->ui->slbSpindle->value()), -2, m_settings->showUICommands());
+        }
+        if (updateParserStatus) {
+            updateParserStatus = false;
+            sendCommand("$G", -3, false);
+        }
+    }
+}
+
+void GRBL::onTimerStateQuery() {
+    if (resetCompleted && statusReceived) {
+        stateQuery();
+        statusReceived = false;
+    }
+
+    frmMain_->ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3")).arg(bufferLength()).arg(commands.length()).arg(queue.length()));
+}
+
+void GRBL::timerEvent(QTimerEvent* event) {
+    if (event->timerId() == timerStateQueryId)
+        onTimerStateQuery();
+    else if (event->timerId() == timerConnectionId)
+        onTimerConnection();
 }

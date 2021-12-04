@@ -10,9 +10,9 @@
 #include <QOpenGLWidget>
 #endif
 
-#include <QTimer>
-#include <QTime>
 #include "drawers/shaderdrawable.h"
+#include <QTime>
+#include <QTimer>
 
 #ifdef GLES
 class GLWidget : public QOpenGLWidget
@@ -22,19 +22,19 @@ class GLWidget : public QGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
 public:
-    explicit GLWidget(QWidget *parent = 0);
+    explicit GLWidget(QWidget* parent = 0);
     ~GLWidget();
-    void addDrawable(ShaderDrawable *drawable);
-    void updateExtremes(ShaderDrawable *drawable);
-    void fitDrawable(ShaderDrawable *drawable = NULL);
+    void addDrawable(ShaderDrawable* drawable);
+    void updateExtremes(ShaderDrawable* drawable);
+    void fitDrawable(ShaderDrawable* drawable = NULL);
     bool antialiasing() const;
     void setAntialiasing(bool antialiasing);
 
     QTime spendTime() const;
-    void setSpendTime(const QTime &spendTime);
+    void setSpendTime(const QTime& spendTime);
 
     QTime estimatedTime() const;
-    void setEstimatedTime(const QTime &estimatedTime);
+    void setEstimatedTime(const QTime& estimatedTime);
 
     double lineWidth() const;
     void setLineWidth(double lineWidth);
@@ -43,18 +43,28 @@ public:
     void setTopView();
     void setFrontView();
     void setLeftView();
+    void toggleProjectionType();
 
     int fps();
     void setFps(int fps);
 
     QString parserStatus() const;
-    void setParserStatus(const QString &parserStatus);
+    void setParserStatus(const QString& parserStatus);
 
     QString bufferState() const;
-    void setBufferState(const QString &bufferState);
+    void setBufferState(const QString& bufferState);
 
     bool zBuffer() const;
     void setZBuffer(bool zBuffer);
+
+    double fov();
+    void setFov(double fov);
+
+    double nearPlane();
+    void setNearPlane(double near);
+
+    double farPlane();
+    void setFarPlane(double far);
 
     bool updatesEnabled() const;
     void setUpdatesEnabled(bool updatesEnabled);
@@ -63,10 +73,10 @@ public:
     void setMsaa(bool msaa);
 
     QColor colorBackground() const;
-    void setColorBackground(const QColor &colorBackground);
+    void setColorBackground(const QColor& colorBackground);
 
     QColor colorText() const;
-    void setColorText(const QColor &colorText);
+    void setColorText(const QColor& colorText);
 
     double pointSize() const;
     void setPointSize(double pointSize);
@@ -75,10 +85,10 @@ public:
     void setVsync(bool vsync);
 
     QString speedState() const;
-    void setSpeedState(const QString &speedState);
+    void setSpeedState(const QString& speedState);
 
     QString pinState() const;
-    void setPinState(const QString &pinState);
+    void setPinState(const QString& pinState);
 
 signals:
     void rotationChanged();
@@ -120,13 +130,19 @@ private:
     QString m_bufferState;
     bool m_updatesEnabled;
 
+    QVector3D m_lookAt;
+    QVector3D m_eye;
+    bool m_perspective;
+    double m_zoomDistance;
+    double m_fov, m_near, m_far;
+
     double normalizeAngle(double angle);
     double calculateVolume(QVector3D size);
     void beginViewAnimation();
     void stopViewAnimation();
 
     QList<ShaderDrawable*> m_shaderDrawables;
-    QOpenGLShaderProgram *m_shaderProgram;
+    QOpenGLShaderProgram* m_shaderProgram;
     QMatrix4x4 m_projectionMatrix;
     QMatrix4x4 m_viewMatrix;
 
@@ -141,14 +157,14 @@ protected:
 #ifdef GLES
     void paintGL();
 #else
-    void paintEvent(QPaintEvent *pe);
+    void paintEvent(QPaintEvent* pe);
 #endif
 
-    void mousePressEvent(QMouseEvent *event);
-    void mouseMoveEvent(QMouseEvent *event);
-    void wheelEvent(QWheelEvent *we);
+    void mousePressEvent(QMouseEvent* event);
+    void mouseMoveEvent(QMouseEvent* event);
+    void wheelEvent(QWheelEvent* we);
 
-    void timerEvent(QTimerEvent *);
+    void timerEvent(QTimerEvent*);
 };
 
 #endif // GLWIDGET_H

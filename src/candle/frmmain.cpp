@@ -3,6 +3,7 @@
 
 #include "frmmain.h"
 #include "qabstractbutton.h"
+#include "qlayout.h"
 #include "ui_frmmain.h"
 #include "ui_frmsettings.h"
 #include "widgets/widgetmimedata.h"
@@ -36,6 +37,16 @@ frmMain::frmMain(QWidget* parent)
     , ui(new Ui::frmMain) {
     m_settings = new frmSettings(this);
     grbl = new GRBL(m_settings, this);
+
+    foreach (QLayout* layout, findChildren<QLayout*>()) {
+        QMargins margin = layout->contentsMargins();
+        margin.setBottom(margin.bottom() > 6 ? 6 : 0);
+        margin.setTop(margin.top() > 6 ? 6 : 0);
+        margin.setLeft(margin.left() > 6 ? 6 : 0);
+        margin.setRight(margin.right() > 6 ? 6 : 0);
+        layout->setContentsMargins(margin);
+    }
+
     // Initializing variables
     m_spindleCW = true;
 
@@ -84,11 +95,11 @@ frmMain::frmMain(QWidget* parent)
     ui->cmdYMinus->setBackColor(ui->cmdXMinus->backColor());
     ui->cmdYPlus->setBackColor(ui->cmdXMinus->backColor());
 
-    ui->cmdFit->setParent(ui->glwVisualizer);
-    ui->cmdIsometric->setParent(ui->glwVisualizer);
-    ui->cmdTop->setParent(ui->glwVisualizer);
-    ui->cmdFront->setParent(ui->glwVisualizer);
-    ui->cmdLeft->setParent(ui->glwVisualizer);
+    //    ui->cmdFit->setParent(ui->glwVisualizer);
+    //    ui->cmdIsometric->setParent(ui->glwVisualizer);
+    //    ui->cmdTop->setParent(ui->glwVisualizer);
+    //    ui->cmdFront->setParent(ui->glwVisualizer);
+    //    ui->cmdLeft->setParent(ui->glwVisualizer);
 
     ui->cmdHeightMapBorderAuto->setMinimumHeight(ui->chkHeightMapBorderShow->sizeHint().height());
     ui->cmdHeightMapCreate->setMinimumHeight(ui->cmdFileOpen->sizeHint().height());
@@ -258,16 +269,14 @@ frmMain::frmMain(QWidget* parent)
     m_scriptEngine.globalObject().setProperty("script", sv);
 
     // Signals/slots
-    connect(&m_timerConnection, SIGNAL(timeout()), this, SLOT(onTimerConnection()));
-    connect(&m_timerStateQuery, SIGNAL(timeout()), this, SLOT(onTimerStateQuery()));
     connect(&m_scriptEngine, &QScriptEngine::signalHandlerException, this, &frmMain::onScriptException);
 
     // Event filter
     qApp->installEventFilter(this);
 
     // Start timers
-    m_timerConnection.start(1000);
-    m_timerStateQuery.start();
+    grbl->timerConnectionStart(1000);
+    grbl->timerStateQueryStart();
 }
 
 frmMain::~frmMain() {
@@ -327,7 +336,7 @@ void frmMain::closeEvent(QCloseEvent* ce) {
         return;
     }
 
-    m_timerConnection.stop();
+    grbl->timerConnectionStop();
     if (grbl->isOpen())
         grbl->close();
 
@@ -832,6 +841,10 @@ void frmMain::on_cmdIsometric_clicked() {
 
 void frmMain::on_cmdFit_clicked() {
     ui->glwVisualizer->fitDrawable(m_currentDrawer);
+}
+
+void frmMain::on_cmdToggleProjection_clicked() {
+    ui->glwVisualizer->toggleProjectionType();
 }
 
 void frmMain::on_grpOverriding_toggled(bool checked) {
@@ -1366,30 +1379,6 @@ void frmMain::on_dockVisualizer_visibilityChanged(bool visible) {
     ui->glwVisualizer->setUpdatesEnabled(visible);
 }
 
-void frmMain::onTimerConnection() {
-    if (!*grbl) {
-        grbl->openPort();
-    } else if (!grbl->homing_ /* && !reseting*/ && !ui->cmdHold->isChecked() && grbl->queue.length() == 0) {
-        if (grbl->updateSpindleSpeed) {
-            grbl->updateSpindleSpeed = false;
-            grbl->sendCommand(QString("S%1").arg(ui->slbSpindle->value()), -2, m_settings->showUICommands());
-        }
-        if (grbl->updateParserStatus) {
-            grbl->updateParserStatus = false;
-            grbl->sendCommand("$G", -3, false);
-        }
-    }
-}
-
-void frmMain::onTimerStateQuery() {
-    if (grbl && grbl->resetCompleted && grbl->statusReceived) {
-        grbl->stateQuery();
-        grbl->statusReceived = false;
-    }
-
-    ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3")).arg(bufferLength()).arg(grbl->commands.length()).arg(grbl->queue.length()));
-}
-
 void frmMain::onTableInsertLine() {
     if (ui->tblProgram->selectionModel()->selectedRows().count() == 0
         || (grbl->senderState() == GRBL::SenderTransferring)
@@ -1700,11 +1689,12 @@ void frmMain::updateHeightMapInterpolationDrawer(bool reset) {
 }
 
 void frmMain::placeVisualizerButtons() {
-    ui->cmdIsometric->move(ui->glwVisualizer->width() - ui->cmdIsometric->width() - 8, 8);
-    ui->cmdTop->move(ui->cmdIsometric->geometry().left() - ui->cmdTop->width() - 8, 8);
-    ui->cmdLeft->move(ui->glwVisualizer->width() - ui->cmdLeft->width() - 8, ui->cmdIsometric->geometry().bottom() + 8);
-    ui->cmdFront->move(ui->cmdLeft->geometry().left() - ui->cmdFront->width() - 8, ui->cmdIsometric->geometry().bottom() + 8);
-    ui->cmdFit->move(ui->glwVisualizer->width() - ui->cmdFit->width() - 8, ui->cmdLeft->geometry().bottom() + 8);
+    //    ui->cmdIsometric->move(ui->glwVisualizer->width() - ui->cmdIsometric->width() - 8, 8);
+    //    ui->cmdTop->move(ui->cmdIsometric->geometry().left() - ui->cmdTop->width() - 8, 8);
+    //    ui->cmdLeft->move(ui->glwVisualizer->width() - ui->cmdLeft->width() - 8, ui->cmdIsometric->geometry().bottom() + 8);
+    //    ui->cmdFront->move(ui->cmdLeft->geometry().left() - ui->cmdFront->width() - 8, ui->cmdIsometric->geometry().bottom() + 8);
+    //    ui->cmdFit->move(ui->glwVisualizer->width() - ui->cmdFit->width() - 8, ui->cmdLeft->geometry().bottom() + 8);
+    //    ui->cmdToggleProjection->move(ui->cmdFit->geometry().left() - ui->cmdToggleProjection->width() - 8, ui->cmdLeft->geometry().bottom() + 8);
 }
 
 void frmMain::preloadSettings() {
@@ -1738,6 +1728,9 @@ void frmMain::loadSettings() {
     m_settings->setMsaa(set.value("msaa", true).toBool());
     m_settings->setVsync(set.value("vsync", false).toBool());
     m_settings->setZBuffer(set.value("zBuffer", false).toBool());
+    m_settings->setFov(set.value("fov", 60).toDouble());
+    m_settings->setNearPlane(set.value("nearPlane", 0.5).toDouble());
+    m_settings->setFarPlane(set.value("farPlane", 10000.0).toDouble());
     m_settings->setSimplify(set.value("simplify", false).toBool());
     m_settings->setSimplifyPrecision(set.value("simplifyPrecision", 0).toDouble());
     m_settings->setGrayscaleSegments(set.value("grayscaleSegments", false).toBool());
@@ -1957,6 +1950,9 @@ void frmMain::saveSettings() {
     set.setValue("msaa", m_settings->msaa());
     set.setValue("vsync", m_settings->vsync());
     set.setValue("zBuffer", m_settings->zBuffer());
+    set.setValue("fov", m_settings->fov());
+    set.setValue("nearPlane", m_settings->nearPlane());
+    set.setValue("farPlane", m_settings->farPlane());
     set.setValue("simplify", m_settings->simplify());
     set.setValue("simplifyPrecision", m_settings->simplifyPrecision());
     set.setValue("grayscaleSegments", m_settings->grayscaleSegments());
@@ -2115,7 +2111,7 @@ void frmMain::applySettings() {
     m_heightMapGridDrawer.setLineWidth(0.1);
     m_heightMapInterpolationDrawer.setLineWidth(m_settings->lineWidth());
     ui->glwVisualizer->setLineWidth(m_settings->lineWidth());
-    m_timerStateQuery.setInterval(m_settings->queryStateTime());
+    grbl->setQueryInterval(m_settings->queryStateTime());
 
     m_toolDrawer.setToolAngle(m_settings->toolType() == 0 ? 180 : m_settings->toolAngle());
     m_toolDrawer.setColor(m_settings->colors("Tool"));
@@ -2124,6 +2120,9 @@ void frmMain::applySettings() {
     ui->glwVisualizer->setAntialiasing(m_settings->antialiasing());
     ui->glwVisualizer->setMsaa(m_settings->msaa());
     ui->glwVisualizer->setZBuffer(m_settings->zBuffer());
+    ui->glwVisualizer->setFov(m_settings->fov());
+    ui->glwVisualizer->setNearPlane(m_settings->nearPlane());
+    ui->glwVisualizer->setFarPlane(m_settings->farPlane());
     ui->glwVisualizer->setVsync(m_settings->vsync());
     ui->glwVisualizer->setFps(m_settings->fps());
     ui->glwVisualizer->setColorBackground(m_settings->colors("VisualizerBackground"));
@@ -2171,6 +2170,7 @@ void frmMain::applySettings() {
                                          .arg(highlight.name())
                                          .arg(base.name()));
 
+    ui->cmdToggleProjection->setIcon(QIcon(":/images/toggle.png"));
     ui->cmdFit->setIcon(QIcon(":/images/fit_1.png"));
     ui->cmdIsometric->setIcon(QIcon(":/images/cube.png"));
     ui->cmdFront->setIcon(QIcon(":/images/cubeFront.png"));
@@ -2178,6 +2178,7 @@ void frmMain::applySettings() {
     ui->cmdTop->setIcon(QIcon(":/images/cubeTop.png"));
 
     if (!light) {
+        Util::invertButtonIconColors(ui->cmdToggleProjection);
         Util::invertButtonIconColors(ui->cmdFit);
         Util::invertButtonIconColors(ui->cmdIsometric);
         Util::invertButtonIconColors(ui->cmdFront);
@@ -2951,19 +2952,6 @@ void frmMain::updateRecentFilesMenu() {
     updateControlsState();
 }
 
-void frmMain::updateOverride(SliderBox* slider, int value, char command) {
-    slider->setCurrentValue(value);
-
-    int target = slider->isChecked() ? slider->value() : 100;
-    bool smallStep = abs(target - slider->currentValue()) < 10 || m_settings->queryStateTime() < 100;
-
-    if (slider->currentValue() < target) {
-        grbl->write(QByteArray(1, char(smallStep ? command + 2 : command)));
-    } else if (slider->currentValue() > target) {
-        grbl->write(QByteArray(1, char(smallStep ? command + 3 : command + 1)));
-    }
-}
-
 void frmMain::updateJogTitle() {
     if (ui->grpJog->isChecked() || !ui->chkKeyboardControl->isChecked()) {
         ui->grpJog->setTitle(tr("Jog"));
@@ -3198,16 +3186,6 @@ bool frmMain::eventFilter(QObject* obj, QEvent* event) {
     return QMainWindow::eventFilter(obj, event);
 }
 
-int frmMain::bufferLength() {
-    int length = 0;
-
-    foreach (CommandAttributes ca, grbl->commands) {
-        length += ca.length;
-    }
-
-    return length;
-}
-
 bool frmMain::dataIsFloating(QString data) {
     QStringList ends;
 
@@ -3318,18 +3296,6 @@ QList<LineSegment*> frmMain::subdivideSegment(LineSegment* segment) {
     return list;
 }
 
-//void frmMain::jogStep() {
-//    grbl->setJogFeed(ui->cboJogFeed->currentText().toDouble());
-//    grbl->setJogStep(ui->cboJogStep->currentText().toDouble());
-//}
-
-//void frmMain::jogContinuous() {
-//    grbl->setJogFeed(ui->cboJogFeed->currentText().toDouble());
-//    grbl->jogContinuous();
-//}
-
-
-
 bool frmMain::compareCoordinates(double x, double y, double z) {
     return ui->txtMPosX->value() == x && ui->txtMPosY->value() == y && ui->txtMPosZ->value() == z;
 }
@@ -3348,38 +3314,6 @@ bool frmMain::isHeightmapFile(QString fileName) {
 
 int frmMain::buttonSize() {
     return ui->cmdHome->minimumWidth();
-}
-
-void frmMain::completeTransfer() {
-    // Shadow last segment
-    GcodeViewParse* parser = m_currentDrawer->viewParser();
-    QList<LineSegment*> list = parser->getLineSegmentList();
-    if (m_lastDrawnLineIndex < list.count()) {
-        list[m_lastDrawnLineIndex]->setDrawn(true);
-        m_currentDrawer->update(QList<int>() << m_lastDrawnLineIndex);
-    }
-
-    // Update state
-    grbl->setSenderState(GRBL::SenderStopped);
-    m_fileProcessedCommandIndex = 0;
-    m_lastDrawnLineIndex = 0;
-    m_storedParserStatus.clear();
-
-    updateControlsState();
-
-    // Send end commands
-    grbl->sendCommands(m_settings->endCommands());
-
-    // Show message box
-    qApp->beep();
-    m_timerStateQuery.stop();
-    m_timerConnection.stop();
-
-    QMessageBox::information(this, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1").arg(ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
-
-    m_timerStateQuery.setInterval(m_settings->queryStateTime());
-    m_timerConnection.start();
-    m_timerStateQuery.start();
 }
 
 QString frmMain::getLineInitCommands(int row) {

@@ -3,37 +3,38 @@
 
 #include "frmsettings.h"
 #include "ui_frmsettings.h"
+#include <QColorDialog>
+#include <QDebug>
+#include <QDir>
+#include <QKeyEvent>
+#include <QKeySequenceEdit>
+#include <QLineEdit>
+#include <QLocale>
+#include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QStyledItemDelegate>
 #include <QtSerialPort/QSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
-#include <QDebug>
-#include <QScrollBar>
-#include <QColorDialog>
-#include <QStyledItemDelegate>
-#include <QKeySequenceEdit>
-#include <QKeyEvent>
-#include <QLineEdit>
-#include <QPlainTextEdit>
-#include <QDir>
-#include <QLocale>
 #include <exception>
 
-frmSettings * frmSettings::instance_;
+frmSettings* frmSettings::instance_;
 
-class CustomKeySequenceEdit : public QKeySequenceEdit
-{
+class CustomKeySequenceEdit : public QKeySequenceEdit {
 public:
-    explicit CustomKeySequenceEdit(QWidget *parent = 0): QKeySequenceEdit(parent) {}
-    ~CustomKeySequenceEdit() {}
+    explicit CustomKeySequenceEdit(QWidget* parent = 0)
+        : QKeySequenceEdit(parent) { }
+    ~CustomKeySequenceEdit() { }
 
 protected:
-    void keyPressEvent(QKeyEvent *pEvent) {
+    void keyPressEvent(QKeyEvent* pEvent) {
         QKeySequenceEdit::keyPressEvent(pEvent);
         QString s = keySequence().toString().split(", ").first();
 
         QString shiftedKeys = "~!@#$%^&*()_+{}|:?><\"";
         QString key = s.right(1);
-        
-        if (pEvent->modifiers() & Qt::KeypadModifier) s = "Num+" + s;
+
+        if (pEvent->modifiers() & Qt::KeypadModifier)
+            s = "Num+" + s;
         else if (!key.isEmpty() && shiftedKeys.contains(key)) {
             s.remove("Shift+");
             s = s.left(s.size() - 1) + QString("Shift+%1").arg(key);
@@ -44,32 +45,27 @@ protected:
     }
 };
 
-class ShortcutDelegate: public QStyledItemDelegate
-{
+class ShortcutDelegate : public QStyledItemDelegate {
 public:
-    ShortcutDelegate() {}
+    ShortcutDelegate() { }
 
-    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override
-    {
+    QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
         return new CustomKeySequenceEdit(parent);
     }
 
-    void setEditorData(QWidget *editor, const QModelIndex &index) const override
-    {
+    void setEditorData(QWidget* editor, const QModelIndex& index) const override {
         static_cast<QKeySequenceEdit*>(editor)->setKeySequence(index.data(Qt::DisplayRole).toString());
     }
 
-    void setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const override
-    {
+    void setModelData(QWidget* editor, QAbstractItemModel* model, const QModelIndex& index) const override {
         model->setData(index, static_cast<QKeySequenceEdit*>(editor)->keySequence().toString());
     }
 };
 
-frmSettings::frmSettings(QWidget *parent) :
-    QDialog(parent),
-    ui(new Ui::frmSettings)
-{
-    if(!instance_)
+frmSettings::frmSettings(QWidget* parent)
+    : QDialog(parent)
+    , ui(new Ui::frmSettings) {
+    if (!instance_)
         instance_ = this;
     else
         throw std::exception("Dublicated frmSettings");
@@ -81,7 +77,7 @@ frmSettings::frmSettings(QWidget *parent) :
     ui->cboFps->setValidator(&m_intValidator);
     ui->cboFontSize->setValidator(&m_intValidator);
 
-    foreach (QGroupBox *box, this->findChildren<QGroupBox*>()) {
+    foreach (QGroupBox* box, this->findChildren<QGroupBox*>()) {
         ui->listCategories->addItem(box->title());
         ui->listCategories->item(ui->listCategories->count() - 1)->setData(Qt::UserRole, box->objectName());
     }
@@ -102,22 +98,19 @@ frmSettings::frmSettings(QWidget *parent) :
     QStringList fl = QStringList() << "candle_*.qm";
     QStringList tl = d.entryList(fl, QDir::Files);
     QRegExp fx("_([^\\.]+)");
-    foreach (const QString &t, tl) {
+    foreach (const QString& t, tl) {
         if (fx.indexIn(t) != -1) {
             QLocale l(fx.cap(1));
             ui->cboLanguage->addItem(l.nativeLanguageName(), l.name().left(2));
         }
     }
-
 }
 
-frmSettings::~frmSettings()
-{
+frmSettings::~frmSettings() {
     delete ui;
 }
 
-int frmSettings::exec()
-{
+int frmSettings::exec() {
     // Store settings to undo
     m_storedValues.clear();
     m_storedChecks.clear();
@@ -147,8 +140,7 @@ int frmSettings::exec()
     return QDialog::exec();
 }
 
-void frmSettings::undo()
-{
+void frmSettings::undo() {
     foreach (QAbstractSpinBox* o, this->findChildren<QAbstractSpinBox*>())
         o->setProperty("value", m_storedValues.takeFirst());
 
@@ -168,32 +160,29 @@ void frmSettings::undo()
         o->setPlainText(m_storedPlainTexts.takeFirst());
 }
 
-void frmSettings::addCustomSettings(QGroupBox *box)
-{
+void frmSettings::addCustomSettings(QGroupBox* box) {
     static_cast<QVBoxLayout*>(ui->scrollAreaWidgetContents->layout())->addWidget(box);
-    
+
     ui->listCategories->addItem(box->title());
     ui->listCategories->item(ui->listCategories->count() - 1)->setData(Qt::UserRole, box->objectName());
 
     m_customSettings.append(box);
 }
 
-void frmSettings::on_listCategories_currentRowChanged(int currentRow)
-{
+void frmSettings::on_listCategories_currentRowChanged(int currentRow) {
     // Scroll to selected groupbox
-    QGroupBox *box = this->findChild<QGroupBox*>(ui->listCategories->item(currentRow)->data(Qt::UserRole).toString());
+    QGroupBox* box = this->findChild<QGroupBox*>(ui->listCategories->item(currentRow)->data(Qt::UserRole).toString());
     if (box) {
         ui->scrollSettings->ensureWidgetVisible(box);
     }
 }
 
-void frmSettings::onScrollBarValueChanged(int value)
-{
+void frmSettings::onScrollBarValueChanged(int value) {
     Q_UNUSED(value)
 
     // Search for first full visible groupbox
     for (int i = 0; i < ui->listCategories->count(); i++) {
-        QGroupBox *box = this->findChild<QGroupBox*>(ui->listCategories->item(i)->data(Qt::UserRole).toString());
+        QGroupBox* box = this->findChild<QGroupBox*>(ui->listCategories->item(i)->data(Qt::UserRole).toString());
         if (box) {
             if (!box->visibleRegion().isEmpty() && box->visibleRegion().boundingRect().y() == 0) {
                 // Select corresponding item in categories list
@@ -204,484 +193,418 @@ void frmSettings::onScrollBarValueChanged(int value)
     }
 }
 
-QString frmSettings::port()
-{
+QString frmSettings::port() {
     return ui->cboPort->currentText();
 }
 
-void frmSettings::setPort(QString port)
-{
+void frmSettings::setPort(QString port) {
     ui->cboPort->setCurrentText(port);
 }
 
-int frmSettings::baud()
-{
+int frmSettings::baud() {
     return ui->cboBaud->currentText().toInt();
 }
 
-void frmSettings::setBaud(int baud)
-{
+void frmSettings::setBaud(int baud) {
     ui->cboBaud->setCurrentText(QString::number(baud));
 }
 
-double frmSettings::toolDiameter()
-{
+double frmSettings::toolDiameter() {
     return ui->txtToolDiameter->value();
 }
 
-void frmSettings::setToolDiameter(double diameter)
-{
+void frmSettings::setToolDiameter(double diameter) {
     ui->txtToolDiameter->setValue(diameter);
 }
 
-double frmSettings::toolLength()
-{
+double frmSettings::toolLength() {
     return ui->txtToolLength->value();
 }
 
-void frmSettings::setToolLength(double length)
-{
+void frmSettings::setToolLength(double length) {
     ui->txtToolLength->setValue(length);
 }
 
-bool frmSettings::antialiasing()
-{
+bool frmSettings::antialiasing() {
     return ui->chkAntialiasing->isChecked();
 }
 
-void frmSettings::setAntialiasing(bool antialiasing)
-{
+void frmSettings::setAntialiasing(bool antialiasing) {
     ui->chkAntialiasing->setChecked(antialiasing);
 }
 
-bool frmSettings::zBuffer()
-{
+bool frmSettings::zBuffer() {
     return ui->chkZBuffer->isChecked();
 }
 
-void frmSettings::setZBuffer(bool zBuffer)
-{
+void frmSettings::setZBuffer(bool zBuffer) {
     ui->chkZBuffer->setChecked(zBuffer);
 }
+double frmSettings::fov() {
+    return ui->txtFov->value();
+}
 
-double frmSettings::lineWidth()
-{
+void frmSettings::setFov(double fov) {
+    ui->txtFov->setValue(fov);
+}
+
+double frmSettings::nearPlane() {
+    return ui->txtNear->value();
+}
+
+void frmSettings::setNearPlane(double near) {
+    ui->txtNear->setValue(near);
+}
+
+double frmSettings::farPlane() {
+    return ui->txtFar->value();
+}
+
+void frmSettings::setFarPlane(double far) {
+    ui->txtFar->setValue(far);
+}
+double frmSettings::lineWidth() {
     return ui->txtLineWidth->value();
 }
 
-void frmSettings::setLineWidth(double lineWidth)
-{
+void frmSettings::setLineWidth(double lineWidth) {
     ui->txtLineWidth->setValue(lineWidth);
 }
 
-double frmSettings::arcLength()
-{
+double frmSettings::arcLength() {
     return ui->txtArcLength->value();
 }
 
-void frmSettings::setArcLength(double arcPrecision)
-{
+void frmSettings::setArcLength(double arcPrecision) {
     ui->txtArcLength->setValue(arcPrecision);
 }
 
-double frmSettings::arcDegree()
-{
+double frmSettings::arcDegree() {
     return ui->txtArcDegree->value();
 }
 
-void frmSettings::setArcDegree(double arcDegree)
-{
+void frmSettings::setArcDegree(double arcDegree) {
     ui->txtArcDegree->setValue(arcDegree);
 }
 
-double frmSettings::arcPrecision()
-{
+double frmSettings::arcPrecision() {
     return ui->radArcDegreeMode->isChecked() ? ui->txtArcDegree->value() : ui->txtArcLength->value();
 }
 
-bool frmSettings::arcDegreeMode()
-{
+bool frmSettings::arcDegreeMode() {
     return ui->radArcDegreeMode->isChecked();
 }
 
-void frmSettings::setArcDegreeMode(bool arcDegreeMode)
-{
+void frmSettings::setArcDegreeMode(bool arcDegreeMode) {
     ui->radArcDegreeMode->setChecked(arcDegreeMode);
 }
 
-bool frmSettings::showProgramCommands()
-{
+bool frmSettings::showProgramCommands() {
     return ui->chkShowProgramCommands->isChecked();
 }
 
-void frmSettings::setShowProgramCommands(bool showAllCommands)
-{
+void frmSettings::setShowProgramCommands(bool showAllCommands) {
     ui->chkShowProgramCommands->setChecked(showAllCommands);
 }
 
-bool frmSettings::showUICommands()
-{
+bool frmSettings::showUICommands() {
     return ui->chkShowUICommands->isChecked();
 }
 
-void frmSettings::setShowUICommands(bool showUICommands)
-{
+void frmSettings::setShowUICommands(bool showUICommands) {
     ui->chkShowUICommands->setChecked(showUICommands);
 }
 
-int frmSettings::spindleSpeedMin()
-{
+int frmSettings::spindleSpeedMin() {
     return ui->txtSpindleSpeedMin->value();
 }
 
-void frmSettings::setSpindleSpeedMin(int speed)
-{
+void frmSettings::setSpindleSpeedMin(int speed) {
     ui->txtSpindleSpeedMin->setValue(speed);
 }
 
-int frmSettings::spindleSpeedMax()
-{
+int frmSettings::spindleSpeedMax() {
     return ui->txtSpindleSpeedMax->value();
 }
 
-void frmSettings::setSpindleSpeedMax(int speed)
-{
+void frmSettings::setSpindleSpeedMax(int speed) {
     ui->txtSpindleSpeedMax->setValue(speed);
 }
 
-int frmSettings::laserPowerMin()
-{
+int frmSettings::laserPowerMin() {
     return ui->txtLaserPowerMin->value();
 }
 
-void frmSettings::setLaserPowerMin(int value)
-{
+void frmSettings::setLaserPowerMin(int value) {
     ui->txtLaserPowerMin->setValue(value);
 }
 
-int frmSettings::laserPowerMax()
-{
+int frmSettings::laserPowerMax() {
     return ui->txtLaserPowerMax->value();
 }
 
-void frmSettings::setLaserPowerMax(int value)
-{
+void frmSettings::setLaserPowerMax(int value) {
     ui->txtLaserPowerMax->setValue(value);
 }
 
-int frmSettings::rapidSpeed()
-{
+int frmSettings::rapidSpeed() {
     return m_rapidSpeed;
 }
 
-void frmSettings::setRapidSpeed(int rapidSpeed)
-{
+void frmSettings::setRapidSpeed(int rapidSpeed) {
     m_rapidSpeed = rapidSpeed;
 }
 
-int frmSettings::acceleration()
-{
+int frmSettings::acceleration() {
     return m_acceleration;
 }
 
-void frmSettings::setAcceleration(int acceleration)
-{
+void frmSettings::setAcceleration(int acceleration) {
     m_acceleration = acceleration;
 }
 
-int frmSettings::queryStateTime()
-{
+int frmSettings::queryStateTime() {
     return ui->txtQueryStateTime->value();
 }
 
-void frmSettings::setQueryStateTime(int queryStateTime)
-{
+void frmSettings::setQueryStateTime(int queryStateTime) {
     ui->txtQueryStateTime->setValue(queryStateTime);
 }
 
-int frmSettings::toolType()
-{
+int frmSettings::toolType() {
     return ui->cboToolType->currentIndex();
 }
 
-void frmSettings::setToolType(int toolType)
-{
+void frmSettings::setToolType(int toolType) {
     ui->cboToolType->setCurrentIndex(toolType);
 }
 
-double frmSettings::toolAngle()
-{
+double frmSettings::toolAngle() {
     return ui->txtToolAngle->value();
 }
 
-void frmSettings::setToolAngle(double toolAngle)
-{
+void frmSettings::setToolAngle(double toolAngle) {
     ui->txtToolAngle->setValue(toolAngle);
 }
 
-int frmSettings::fps()
-{
+int frmSettings::fps() {
     return ui->cboFps->currentText().toInt();
 }
 
-void frmSettings::setFps(int fps)
-{
+void frmSettings::setFps(int fps) {
     ui->cboFps->setCurrentText(QString::number(fps));
 }
 
-bool frmSettings::vsync()
-{
+bool frmSettings::vsync() {
     return ui->chkVSync->isChecked();
 }
 
-void frmSettings::setVsync(bool value)
-{
+void frmSettings::setVsync(bool value) {
     ui->chkVSync->setChecked(value);
 }
 
-bool frmSettings::msaa()
-{
+bool frmSettings::msaa() {
     return ui->radMSAA->isChecked();
 }
 
-void frmSettings::setMsaa(bool msaa)
-{
+void frmSettings::setMsaa(bool msaa) {
     ui->radMSAA->setChecked(msaa);
 }
 
-bool frmSettings::autoCompletion()
-{
+bool frmSettings::autoCompletion() {
     return ui->chkAutocompletion->isChecked();
 }
 
-void frmSettings::setAutoCompletion(bool autoCompletion)
-{
+void frmSettings::setAutoCompletion(bool autoCompletion) {
     ui->chkAutocompletion->setChecked(autoCompletion);
 }
 
-int frmSettings::units()
-{
+int frmSettings::units() {
     return m_units;
 }
 
-void frmSettings::setUnits(int units)
-{
+void frmSettings::setUnits(int units) {
     m_units = units;
 }
 
-bool frmSettings::simplify()
-{
+bool frmSettings::simplify() {
     return ui->chkSimplify->isChecked();
 }
 
-void frmSettings::setSimplify(bool simplify)
-{
+void frmSettings::setSimplify(bool simplify) {
     ui->chkSimplify->setChecked(simplify);
 }
 
-double frmSettings::simplifyPrecision()
-{
+double frmSettings::simplifyPrecision() {
     return ui->txtSimplifyPrecision->value();
 }
 
-void frmSettings::setSimplifyPrecision(double simplifyPrecision)
-{
+void frmSettings::setSimplifyPrecision(double simplifyPrecision) {
     ui->txtSimplifyPrecision->setValue(simplifyPrecision);
 }
 
-QList<ColorPicker *> frmSettings::colors()
-{
+QList<ColorPicker*> frmSettings::colors() {
     return ui->grpColors->findChildren<ColorPicker*>();
 }
 
-QColor frmSettings::colors(QString name)
-{
-    ColorPicker *pick = this->findChildren<ColorPicker*>("clp" + name).at(0);
-    if (pick) return pick->color(); else return QColor();
+QColor frmSettings::colors(QString name) {
+    ColorPicker* pick = this->findChildren<ColorPicker*>("clp" + name).at(0);
+    if (pick)
+        return pick->color();
+    else
+        return QColor();
 }
 
-int frmSettings::fontSize()
-{
+int frmSettings::fontSize() {
     return ui->cboFontSize->currentText().toInt();
 }
 
-void frmSettings::setFontSize(int fontSize)
-{
+void frmSettings::setFontSize(int fontSize) {
     ui->cboFontSize->setCurrentText(QString::number(fontSize));
 }
 
-bool frmSettings::grayscaleSegments()
-{
+bool frmSettings::grayscaleSegments() {
     return ui->chkGrayscale->isChecked();
 }
 
-void frmSettings::setGrayscaleSegments(bool value)
-{
+void frmSettings::setGrayscaleSegments(bool value) {
     ui->chkGrayscale->setChecked(value);
 }
 
-bool frmSettings::grayscaleSCode()
-{
+bool frmSettings::grayscaleSCode() {
     return ui->radGrayscaleS->isChecked();
 }
 
-void frmSettings::setGrayscaleSCode(bool value)
-{
+void frmSettings::setGrayscaleSCode(bool value) {
     ui->radGrayscaleS->setChecked(value);
     ui->radGrayscaleZ->setChecked(!value);
 }
 
-bool frmSettings::drawModeVectors()
-{
+bool frmSettings::drawModeVectors() {
     return ui->radDrawModeVectors->isChecked();
 }
 
-void frmSettings::setDrawModeVectors(bool value)
-{
+void frmSettings::setDrawModeVectors(bool value) {
     ui->radDrawModeVectors->setChecked(value);
     ui->radDrawModeRaster->setChecked(!value);
 }
 
-bool frmSettings::ignoreErrors()
-{
+bool frmSettings::ignoreErrors() {
     return ui->chkIgnoreErrors->isChecked();
 }
 
-void frmSettings::setIgnoreErrors(bool value)
-{
+void frmSettings::setIgnoreErrors(bool value) {
     ui->chkIgnoreErrors->setChecked(value);
 }
 
-bool frmSettings::autoLine()
-{
+bool frmSettings::autoLine() {
     return ui->chkAutoLine->isChecked();
 }
 
-void frmSettings::setAutoLine(bool value)
-{
+void frmSettings::setAutoLine(bool value) {
     ui->chkAutoLine->setChecked(value);
 }
 
-QString frmSettings::startCommands()
-{
+QString frmSettings::startCommands() {
     return ui->txtStartCommands->toPlainText();
 }
 
-void frmSettings::setStartCommands(QString commands)
-{
+void frmSettings::setStartCommands(QString commands) {
     ui->txtStartCommands->setPlainText(commands);
 }
 
-QString frmSettings::endCommands()
-{
+QString frmSettings::endCommands() {
     return ui->txtEndCommands->toPlainText();
 }
 
-void frmSettings::setEndCommands(QString commands)
-{
+void frmSettings::setEndCommands(QString commands) {
     ui->txtEndCommands->setPlainText(commands);
 }
 
-QString frmSettings::toolChangeCommands()
-{
+QString frmSettings::toolChangeCommands() {
     return ui->txtToolChangeCommands->toPlainText();
 }
 
-void frmSettings::setToolChangeCommands(QString commands)
-{
+void frmSettings::setToolChangeCommands(QString commands) {
     ui->txtToolChangeCommands->setPlainText(commands);
 }
 
-bool frmSettings::pauseToolChange()
-{
+bool frmSettings::pauseToolChange() {
     return ui->chkPauseToolChange->isChecked();
 }
 
-void frmSettings::setPauseToolChange(bool pause)
-{
+void frmSettings::setPauseToolChange(bool pause) {
     ui->chkPauseToolChange->setChecked(pause);
 }
 
-QString frmSettings::language()
-{
+QString frmSettings::language() {
     return ui->cboLanguage->currentData().toString();
 }
 
-void frmSettings::setLanguage(QString language)
-{
+void frmSettings::setLanguage(QString language) {
     int i = ui->cboLanguage->findData(language);
-    if (i != -1) ui->cboLanguage->setCurrentIndex(i);
+    if (i != -1)
+        ui->cboLanguage->setCurrentIndex(i);
 }
 
-QVector3D frmSettings::machineBounds()
-{
+QVector3D frmSettings::machineBounds() {
     return m_machineBounds;
 }
 
-void frmSettings::setMachineBounds(QVector3D bounds)
-{
+void frmSettings::setMachineBounds(QVector3D bounds) {
     m_machineBounds = bounds;
 }
 
-bool frmSettings::homingEnabled()
-{
+bool frmSettings::homingEnabled() {
     return m_homingEnabled;
 }
 
-void frmSettings::setHomingEnabled(bool homing)
-{
+void frmSettings::setHomingEnabled(bool homing) {
     m_homingEnabled = homing;
 }
 
-bool frmSettings::softLimitsEnabled()
-{
+bool frmSettings::softLimitsEnabled() {
     return m_softLimitsEnabled;
 }
 
-void frmSettings::setSoftLimitsEnabled(bool softLimits)
-{
+void frmSettings::setSoftLimitsEnabled(bool softLimits) {
     m_softLimitsEnabled = softLimits;
 }
 
-void frmSettings::showEvent(QShowEvent *se)
-{
+void frmSettings::showEvent(QShowEvent* se) {
     Q_UNUSED(se)
 }
 
-void frmSettings::searchPorts()
-{
+void frmSettings::searchPorts() {
     ui->cboPort->clear();
 
-    foreach (QSerialPortInfo info ,QSerialPortInfo::availablePorts()) {
+    foreach (QSerialPortInfo info, QSerialPortInfo::availablePorts()) {
         ui->cboPort->insertItem(0, info.portName());
     }
 }
 
-void frmSettings::on_cmdRefresh_clicked()
-{
+void frmSettings::on_cmdRefresh_clicked() {
     searchPorts();
 }
 
-void frmSettings::on_cmdOK_clicked()
-{
+void frmSettings::on_cmdOK_clicked() {
     this->accept();
 }
 
-void frmSettings::on_cmdCancel_clicked()
-{
+void frmSettings::on_cmdCancel_clicked() {
     this->reject();
 }
 
-void frmSettings::on_cboToolType_currentIndexChanged(int index)
-{
+void frmSettings::on_cboToolType_currentIndexChanged(int index) {
     ui->lblToolAngle->setEnabled(index == 1);
     ui->txtToolAngle->setEnabled(index == 1);
 }
 
-void frmSettings::on_cmdDefaults_clicked()
-{
+void frmSettings::on_cmdDefaults_clicked() {
     if (QMessageBox::warning(this, qApp->applicationDisplayName(), tr("Reset settings to default values?"),
-                             QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel) != QMessageBox::Yes) return;
+            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel)
+        != QMessageBox::Yes)
+        return;
 
     setPort("");
     setBaud(115200);
@@ -708,6 +631,9 @@ void frmSettings::on_cmdDefaults_clicked()
     setSimplifyPrecision(0.0);
     setFps(60);
     setZBuffer(false);
+    setFov(60.0);
+    setNearPlane(0.5);
+    setFarPlane(10000.0);
     setGrayscaleSegments(false);
     setGrayscaleSCode(true);
     setDrawModeVectors(true);
@@ -755,8 +681,8 @@ void frmSettings::on_cmdDefaults_clicked()
     d["actSpindleOnOff"] = "Num+0";
     d["actSpindleSpeedPlus"] = "Num+*";
     d["actSpindleSpeedMinus"] = "Num+/";
-    
-    QTableWidget *table = ui->tblShortcuts;
+
+    QTableWidget* table = ui->tblShortcuts;
 
     for (int i = 0; i < table->rowCount(); i++) {
         QString s = table->item(i, 0)->data(Qt::DisplayRole).toString();
@@ -772,13 +698,11 @@ void frmSettings::on_cmdDefaults_clicked()
     emit settingsSetByDefault();
 }
 
-void frmSettings::on_cboFontSize_currentTextChanged(const QString &arg1)
-{
+void frmSettings::on_cboFontSize_currentTextChanged(const QString& arg1) {
     qApp->setStyleSheet(QString(qApp->styleSheet()).replace(QRegExp("font-size:\\s*\\d+"), "font-size: " + arg1));
 }
 
-void frmSettings::on_radDrawModeVectors_toggled(bool checked)
-{
+void frmSettings::on_radDrawModeVectors_toggled(bool checked) {
     ui->chkSimplify->setEnabled(checked);
     ui->lblSimpilyPrecision->setEnabled(checked && ui->chkSimplify->isChecked());
     ui->txtSimplifyPrecision->setEnabled(checked && ui->chkSimplify->isChecked());
@@ -786,17 +710,14 @@ void frmSettings::on_radDrawModeVectors_toggled(bool checked)
     ui->radDrawModeRaster->setChecked(!checked);
 }
 
-void frmSettings::on_radDrawModeRaster_toggled(bool checked)
-{
+void frmSettings::on_radDrawModeRaster_toggled(bool checked) {
     ui->radDrawModeVectors->setChecked(!checked);
 }
 
-void frmSettings::on_radGrayscaleS_toggled(bool checked)
-{
+void frmSettings::on_radGrayscaleS_toggled(bool checked) {
     ui->radGrayscaleZ->setChecked(!checked);
 }
 
-void frmSettings::on_radGrayscaleZ_toggled(bool checked)
-{
+void frmSettings::on_radGrayscaleZ_toggled(bool checked) {
     ui->radGrayscaleS->setChecked(!checked);
 }

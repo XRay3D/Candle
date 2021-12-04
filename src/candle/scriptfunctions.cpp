@@ -62,7 +62,7 @@ void ScriptFunctions::saveFile(QString fileName)
 
 int ScriptFunctions::bufferLength()
 {
-    return m_frmMain->bufferLength();
+    return m_frmMain->grbl->bufferLength();
 }
 
 int ScriptFunctions::commandsLength()
