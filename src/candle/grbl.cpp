@@ -1158,12 +1158,12 @@ void GRBL::onTimerConnection() {
     if (!*this) {
         openPort();
     } else if (!homing_ /* && !reseting*/ && !frmMain_->ui->cmdHold->isChecked() && queue.length() == 0) {
-        if (updateSpindleSpeed) {
-            updateSpindleSpeed = false;
+        if (updateSpindleSpeed_) {
+            updateSpindleSpeed_ = false;
             sendCommand(QString("S%1").arg(frmMain_->ui->slbSpindle->value()), GRBL::CmdUtility1, m_settings->showUICommands());
         }
-        if (updateParserStatus) {
-            updateParserStatus = false;
+        if (updateParserStatus_) {
+            updateParserStatus_ = false;
             sendCommand("$G", GRBL::CmdUtility3, false);
         }
     }
@@ -1176,6 +1176,38 @@ void GRBL::onTimerStateQuery() {
     }
 
     frmMain_->ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3")).arg(bufferLength()).arg(commands.length()).arg(queue.length()));
+}
+
+int GRBL::lastDrawnLineIndex() const {
+    return m_lastDrawnLineIndex;
+}
+
+void GRBL::setLastDrawnLineIndex(int newLastDrawnLineIndex) {
+    m_lastDrawnLineIndex = newLastDrawnLineIndex;
+}
+
+int GRBL::probeIndex() const {
+    return m_probeIndex;
+}
+
+void GRBL::setProbeIndex(int newProbeIndex) {
+    m_probeIndex = newProbeIndex;
+}
+
+int GRBL::fileProcessedCommandIndex() const {
+    return m_fileProcessedCommandIndex;
+}
+
+void GRBL::setFileProcessedCommandIndex(int newFileProcessedCommandIndex) {
+    m_fileProcessedCommandIndex = newFileProcessedCommandIndex;
+}
+
+int GRBL::fileCommandIndex() const {
+    return m_fileCommandIndex;
+}
+
+void GRBL::setFileCommandIndex(int newFileCommandIndex) {
+    m_fileCommandIndex = newFileCommandIndex;
 }
 
 void GRBL::timerEvent(QTimerEvent* event) {

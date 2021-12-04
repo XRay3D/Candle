@@ -705,7 +705,10 @@ void frmMain::on_cmdFileAbort_clicked() {
 }
 
 void frmMain::on_cmdFileReset_clicked() {
-    grbl->fileReset();
+    grbl->setFileCommandIndex(0);
+    grbl->setFileProcessedCommandIndex(0);
+    grbl->setLastDrawnLineIndex(0);
+    grbl->setProbeIndex(-1);
 
     if (!m_heightMapMode) {
         QList<LineSegment*> list = m_viewParser.getLineSegmentList();

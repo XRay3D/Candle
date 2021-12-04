@@ -96,7 +96,7 @@ public:
     void completeTransfer();
     void setAborting();
     void setUpdateSpindleSpeed();
-
+    bool dataIsReset(QString data);
     // Jog
     void setJogStep(double step);
     void setJogFeed(double feed);
@@ -130,7 +130,20 @@ public:
     void timerStateQueryStop();
     void timerStateQueryStart(int Interval = 0);
 
+    int fileCommandIndex() const;
+    void setFileCommandIndex(int newFileCommandIndex);
+
+    int fileProcessedCommandIndex() const;
+    void setFileProcessedCommandIndex(int newFileProcessedCommandIndex);
+
+    int probeIndex() const;
+    void setProbeIndex(int newProbeIndex);
+
+    int lastDrawnLineIndex() const;
+    void setLastDrawnLineIndex(int newLastDrawnLineIndex);
+
 private: //////////////////////////
+    static const int BUFFERLENGTH = 127;
     frmMain* frmMain_;
     frmSettings* m_settings;
     // Jog
