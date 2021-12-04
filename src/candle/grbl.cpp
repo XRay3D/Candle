@@ -394,19 +394,19 @@ void GRBL::onSerialPortReadyRead() {
                             set[gs.cap(1).toInt()] = gs.cap(2).toDouble();
                             p += gs.matchedLength();
                         }
-                        if (set.keys().contains(13))
+                        if (set.contains(13))
                             m_settings->setUnits(set[13]);
-                        if (set.keys().contains(20))
+                        if (set.contains(20))
                             m_settings->setSoftLimitsEnabled(set[20]);
-                        if (set.keys().contains(22)) {
+                        if (set.contains(22)) {
                             m_settings->setHomingEnabled(set[22]);
                             frmMain_->m_machineBoundsDrawer.setVisible(set[22]);
                         }
-                        if (set.keys().contains(110))
+                        if (set.contains(110))
                             m_settings->setRapidSpeed(set[110]);
-                        if (set.keys().contains(120))
+                        if (set.contains(120))
                             m_settings->setAcceleration(set[120]);
-                        if (set.keys().contains(130) && set.keys().contains(131) && set.keys().contains(132)) {
+                        if (set.contains(130) && set.contains(131) && set.contains(132)) {
                             m_settings->setMachineBounds(QVector3D(set[130], set[131], set[132]));
                             frmMain_->m_machineBoundsDrawer.setBorderRect(QRectF(0, 0, -set[130], -set[131]));
                         }
