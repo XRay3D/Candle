@@ -186,7 +186,6 @@ private: //////////////////////////
     int m_fileCommandIndex;
     int m_fileProcessedCommandIndex;
     int m_probeIndex;
-
     // Current values
     int m_lastDrawnLineIndex;
 

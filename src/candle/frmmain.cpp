@@ -3211,10 +3211,6 @@ bool frmMain::dataIsEnd(QString data) {
     return false;
 }
 
-bool frmMain::dataIsReset(QString data) {
-    return QRegExp("^GRBL|GCARVIN\\s\\d\\.\\d.").indexIn(data.toUpper()) != -1;
-}
-
 QTime frmMain::updateProgramEstimatedTime(QList<LineSegment*> lines) {
     double time = 0;
 

@@ -339,7 +339,7 @@ private:
     // Utility
     bool dataIsFloating(QString data);
     bool dataIsEnd(QString data);
-    bool dataIsReset(QString data);
+
     QTime updateProgramEstimatedTime(QList<LineSegment*> lines);
     QList<LineSegment*> subdivideSegment(LineSegment* segment);
 

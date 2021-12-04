@@ -111,7 +111,7 @@ void GRBL::onSerialPortReadyRead() {
 
         // Filter prereset responses
         if (reseting) {
-            if (!frmMain_->dataIsReset(data))
+            if (!dataIsReset(data))
                 continue;
             else {
                 reseting = false;
@@ -216,7 +216,7 @@ void GRBL::onSerialPortReadyRead() {
 
             // Update tool position
             QVector3D toolPosition;
-            if (!(state == DeviceCheck && frmMain_->m_fileProcessedCommandIndex < frmMain_->m_currentModel->rowCount() - 1)) {
+            if (!(state == DeviceCheck && m_fileProcessedCommandIndex < frmMain_->m_currentModel->rowCount() - 1)) {
                 toolPosition = QVector3D(toMetric(frmMain_->ui->txtWPosX->value()),
                     toMetric(frmMain_->ui->txtWPosY->value()),
                     toMetric(frmMain_->ui->txtWPosZ->value()));
@@ -329,12 +329,12 @@ void GRBL::onSerialPortReadyRead() {
         } else if (data.length() > 0) {
 
             if (commands.length() > 0 && !frmMain_->dataIsFloating(data)
-                && !(commands[0].command != QStringLiteral("[CTRL+X]") && frmMain_->dataIsReset(data))) {
+                && !(commands[0].command != QStringLiteral("[CTRL+X]") && dataIsReset(data))) {
 
                 static QString response; // Full response string
 
                 if ((commands[0].command != QStringLiteral("[CTRL+X]") && frmMain_->dataIsEnd(data))
-                    || (commands[0].command == QStringLiteral("[CTRL+X]") && frmMain_->dataIsReset(data))) {
+                    || (commands[0].command == QStringLiteral("[CTRL+X]") && dataIsReset(data))) {
 
                     response.append(data);
 
@@ -386,7 +386,7 @@ void GRBL::onSerialPortReadyRead() {
                             frmMain_->ui->slbSpindle->setCurrentValue(speed);
                         }
 
-                        updateParserStatus = true;
+                        updateParserStatus_ = true;
                     }
 
                     // Offsets
@@ -429,7 +429,7 @@ void GRBL::onSerialPortReadyRead() {
                     // Reset complete response
                     if (uncomment == "[CTRL+X]") {
                         resetCompleted = true;
-                        updateParserStatus = true;
+                        updateParserStatus_ = true;
 
                         // Query grbl settings
                         sendCommand("$$", GRBL::CmdUtility1, false);
@@ -509,7 +509,7 @@ void GRBL::onSerialPortReadyRead() {
                         tc.endEditBlock();
 
                         if (scrolledDown)
-                            txtConsole->verticalScrollBar()->setValue(txtConsole->verticalScrollBar()->maximum());
+                            frmMain_->ui->txtConsole->verticalScrollBar()->setValue(frmMain_->ui->txtConsole->verticalScrollBar()->maximum());
                     }
 
                     // Check queue
@@ -719,7 +719,7 @@ void GRBL::stateQuery() {
 
 void GRBL::homing() {
     homing_ = true;
-    updateSpindleSpeed = true;
+    updateSpindleSpeed_ = true;
     sendCommand("$H", GRBL::CmdUi, m_settings->showUICommands());
 }
 
@@ -737,12 +737,12 @@ void GRBL::grblReset() {
 
     setSenderState(SenderStopped);
     setDeviceState(DeviceUnknown);
-    frmMain_->m_fileCommandIndex = 0;
+    m_fileCommandIndex = 0;
 
     reseting = true;
     homing_ = false;
     resetCompleted = false;
-    updateSpindleSpeed = true;
+    updateSpindleSpeed_ = true;
     statusReceived = true;
 
     // Drop all remaining commands in buffer
@@ -950,7 +950,11 @@ void GRBL::completeTransfer() {
 
 void GRBL::setAborting() { aborting = true; }
 
-void GRBL::setUpdateSpindleSpeed() { updateSpindleSpeed = true; }
+void GRBL::setUpdateSpindleSpeed() { updateSpindleSpeed_ = true; }
+
+bool GRBL::dataIsReset(QString data) {
+    return QRegExp("^GRBL|GCARVIN\\s\\d\\.\\d.").indexIn(data.toUpper()) != -1;
+}
 
 void GRBL::setJogStep(double step) { jogStep_ = step; }
 
