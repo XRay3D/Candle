@@ -19,17 +19,17 @@ void ScriptDevice::sendCommands(QStringList commands, int index)
 
 void ScriptDevice::sendCommand(QString command, int index, bool showInConsole)
 {
-    m_frmMain->sendCommand(command, index, showInConsole, m_frmMain->m_queue.size());
+    m_frmMain->sendCommand(command, index, showInConsole, m_frmMain->m_grbl->queue().size());
 }
 
 void ScriptDevice::sendRuntimeCommand(QString command)
 {
-    m_frmMain->m_currentConnection->send(command.toLatin1());
+    m_frmMain->m_grbl->connectionRef()->send(command.toLatin1());
 }
 
 void ScriptDevice::waitResponses()
 {
-    while (m_frmMain->m_queue.size() || m_frmMain->m_commands.size()) {
+    while (m_frmMain->m_grbl->queue().size() || m_frmMain->m_grbl->commands().size()) {
         QApplication::processEvents();
     }
 }
@@ -90,15 +90,15 @@ int ScriptDevice::bufferLength()
 
 int ScriptDevice::commandsLength()
 {
-    return m_frmMain->m_commands.length();
+    return m_frmMain->m_grbl->commands().length();
 }
 
 int ScriptDevice::queueLength()
 {
-    return m_frmMain->m_queue.length();
+    return m_frmMain->m_grbl->queue().length();
 }
 
 int ScriptDevice::state()
 {
-    return m_frmMain->m_deviceState;
+    return m_frmMain->m_grbl->deviceStateRaw();
 }

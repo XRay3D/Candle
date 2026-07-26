@@ -12,6 +12,19 @@ GrblController::GrblController(GrblSettingsProvider *settings,
     , m_scriptEvaluator(scriptEvaluator)
     , m_errorDecision(errorDecision)
     , m_keyboardControlActive(keyboardControlActive)
+    , m_senderState(SenderUnknown)
+    , m_deviceState(DeviceUnknown)
+    , m_sdRun(false)
+    , m_currentConnection(nullptr)
+    , m_homing(false)
+    , m_updateSpindleSpeed(false)
+    , m_updateParserStatus(false)
+    , m_reseting(false)
+    , m_resetCompleted(true)
+    , m_aborting(false)
+    , m_statusReceived(false)
+    , m_fileProcessedCommandIndex(0)
+    , m_spindleCW(true)
 {
 }
 

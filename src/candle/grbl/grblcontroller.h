@@ -5,6 +5,8 @@
 #include <QObject>
 #include <QList>
 #include <QString>
+#include <QTimer>
+#include <QVector4D>
 
 class Connection;
 class GrblSettingsProvider;
@@ -100,9 +102,73 @@ public:
                              QObject *parent = nullptr);
     ~GrblController();
 
+    // --- Temporary raw storage access -----------------------------------
+    // frmMain still owns all the logic that reads/writes this state (queue
+    // draining, response parsing, jogging, ...); these accessors just let
+    // that logic keep working while the storage lives here. Deleted once
+    // the logic itself moves into GrblController and gets a real API
+    // (Commits 3-5).
+    SenderState& senderStateRaw() { return m_senderState; }
+    DeviceState& deviceStateRaw() { return m_deviceState; }
+    bool& sdRun() { return m_sdRun; }
+    Connection*& connectionRef() { return m_currentConnection; }
+    QList<CommandAttributes>& commands() { return m_commands; }
+    QList<CommandQueue>& queue() { return m_queue; }
+    QTimer& timerConnection() { return m_timerConnection; }
+    QTimer& timerStateQuery() { return m_timerStateQuery; }
+    QString& storedParserStatusRaw() { return m_storedParserStatus; }
+    bool& homing() { return m_homing; }
+    bool& updateSpindleSpeedFlag() { return m_updateSpindleSpeed; }
+    bool& updateParserStatusFlag() { return m_updateParserStatus; }
+    bool& reseting() { return m_reseting; }
+    bool& resetCompleted() { return m_resetCompleted; }
+    bool& aborting() { return m_aborting; }
+    bool& statusReceivedFlag() { return m_statusReceived; }
+    int& fileCommandIndexRaw() { return m_fileCommandIndex; }
+    int& fileProcessedCommandIndexRaw() { return m_fileProcessedCommandIndex; }
+    int& probeIndexRaw() { return m_probeIndex; }
+    int& sdProcessedCommandIndex() { return m_sdProcessedCommandIndex; }
+    bool& absoluteCoordinates() { return m_absoluteCoordinates; }
+    bool& spindleCW() { return m_spindleCW; }
+    QVector4D& jogVector() { return m_jogVector; }
+    // ----------------------------------------------------------------------
+
 private:
     GrblSettingsProvider *m_settings;
     std::function<QString(QString)> m_scriptEvaluator;
     std::function<GrblErrorAction(QString)> m_errorDecision;
     std::function<bool()> m_keyboardControlActive;
+
+    SenderState m_senderState;
+    DeviceState m_deviceState;
+    bool m_sdRun;
+
+    Connection *m_currentConnection;
+
+    QList<CommandAttributes> m_commands;
+    QList<CommandQueue> m_queue;
+
+    QTimer m_timerConnection;
+    QTimer m_timerStateQuery;
+
+    QString m_storedParserStatus;
+
+    bool m_homing;
+    bool m_updateSpindleSpeed;
+    bool m_updateParserStatus;
+
+    bool m_reseting;
+    bool m_resetCompleted;
+    bool m_aborting;
+    bool m_statusReceived;
+
+    int m_fileCommandIndex;
+    int m_fileProcessedCommandIndex;
+    int m_probeIndex;
+    int m_sdProcessedCommandIndex;
+
+    bool m_absoluteCoordinates;
+    bool m_spindleCW;
+
+    QVector4D m_jogVector;
 };

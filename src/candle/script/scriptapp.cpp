@@ -13,7 +13,7 @@ ScriptApp::ScriptApp(frmMain *f): QObject(0), m_frmMain(f)
 
 bool ScriptApp::newFile()
 {
-    if (m_frmMain->m_senderState != SenderStopped) {
+    if (m_frmMain->m_grbl->senderStateRaw() != SenderStopped) {
         qInfo(scriptLogCategory) << "Can't create new file while sender is streaming";
         return false;
     }
@@ -27,7 +27,7 @@ bool ScriptApp::newFile()
 
 bool ScriptApp::loadFile(QString fileName)
 {
-    if (m_frmMain->m_senderState != SenderStopped) {
+    if (m_frmMain->m_grbl->senderStateRaw() != SenderStopped) {
         qInfo(scriptLogCategory) << "Can't load file while sender is streaming";
         return false;
     }
@@ -41,7 +41,7 @@ bool ScriptApp::loadFile(QString fileName)
 
 bool ScriptApp::loadFile(QStringList data)
 {
-    if (m_frmMain->m_senderState != SenderStopped) {
+    if (m_frmMain->m_grbl->senderStateRaw() != SenderStopped) {
         qInfo(scriptLogCategory) << "Can't load file while sender is streaming";
         return false;
     }

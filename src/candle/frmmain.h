@@ -285,10 +285,8 @@ private:
     GcodeViewParse m_viewParser;
     GcodeViewParse m_probeParser;
 
-    // State
-    SenderState m_senderState;
-    DeviceState m_deviceState;
-    bool m_sdRun;
+    // GRBL controller (owns protocol state; see grbl/grblcontroller.h)
+    GrblController *m_grbl;
 
     // Visualizer drawers
     // TODO: Add machine table visualizer
@@ -315,13 +313,6 @@ private:
     TableHistoryManager *m_programTableHistoryManager;
     TableHistoryManager *m_programHeightmapTableHistoryManager;
 
-    // Connections
-    Connection *m_currentConnection;
-
-    // Queues
-    QList<CommandAttributes> m_commands;
-    QList<CommandQueue> m_queue;    
-
     // Forms
     frmSettings *m_settings;
     frmAbout *m_about;
@@ -336,13 +327,8 @@ private:
     QStringList m_recentHeightmaps;
 
     // Timers
-    QTimer m_timerConnection;
-    QTimer m_timerStateQuery;
     QBasicTimer m_timerToolAnimation;
     QTime m_startTime;
-
-    // Stored parser params
-    QString m_storedParserStatus;
 
     // Flags
     bool m_programLoading;
@@ -350,35 +336,13 @@ private:
     bool m_fileChanged;
     bool m_heightMapChanged;
 
-    bool m_homing;
-    bool m_updateSpindleSpeed;
-    bool m_updateParserStatus;
-
-    bool m_reseting;
-    bool m_resetCompleted;
-    bool m_aborting;
-    bool m_statusReceived;
-
     bool m_heightMapMode;
-
-    // Indices
-    int m_fileCommandIndex;
-    int m_fileProcessedCommandIndex;
-    int m_probeIndex;
-    int m_sdProcessedCommandIndex;
 
     // Current values
     int m_lastDrawnLineIndex;
 
     // Keyboard
-    bool m_absoluteCoordinates;
     bool m_storedKeyboardControl;
-
-    // Spindle
-    bool m_spindleCW;
-
-    // Jog
-    QVector4D m_jogVector;
 
     // Script
     QScriptEngine m_scriptEngine;

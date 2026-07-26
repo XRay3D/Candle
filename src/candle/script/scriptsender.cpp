@@ -8,5 +8,5 @@ ScriptSender::ScriptSender(frmMain* f) : QObject(f)
 
 int ScriptSender::state()
 {
-    return m_frmMain->m_senderState;
+    return m_frmMain->m_grbl->senderStateRaw();
 }
