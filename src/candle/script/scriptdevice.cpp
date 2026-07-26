@@ -1,47 +1,47 @@
 #include "scriptdevice.h"
-#include "../frmmain.h"
+#include "grbl/grblcontroller.h"
 #include <QApplication>
 
-ScriptDevice::ScriptDevice(frmMain *f) : QObject(f)
+ScriptDevice::ScriptDevice(GrblController *grbl) : QObject(grbl)
 {
-    m_frmMain = f;
+    m_grbl = grbl;
 }
 
 void ScriptDevice::sendCommands(QString commands, int index)
 {
-    m_frmMain->sendCommands(commands, index);
+    m_grbl->sendCommands(commands, index);
 }
 
 void ScriptDevice::sendCommands(QStringList commands, int index)
 {
-    m_frmMain->sendCommands(commands.join("\n"), index);
+    m_grbl->sendCommands(commands.join("\n"), index);
 }
 
 void ScriptDevice::sendCommand(QString command, int index, bool showInConsole)
 {
-    m_frmMain->sendCommand(command, index, showInConsole, m_frmMain->m_grbl->queue().size());
+    m_grbl->sendCommand(command, index, showInConsole, m_grbl->queueCount());
 }
 
 void ScriptDevice::sendRuntimeCommand(QString command)
 {
-    m_frmMain->m_grbl->connectionRef()->send(command.toLatin1());
+    m_grbl->sendRealtime(command.toLatin1());
 }
 
 void ScriptDevice::waitResponses()
 {
-    while (m_frmMain->m_grbl->queue().size() || m_frmMain->m_grbl->commands().size()) {
+    while (m_grbl->queueCount() || m_grbl->commandsCount()) {
         QApplication::processEvents();
     }
 }
 
 void ScriptDevice::storeParserState()
 {
-    m_frmMain->storeParserState();
+    m_grbl->storeParserState();
 }
 
 void ScriptDevice::restoreParserState()
 {
-    m_frmMain->restoreParserState();
+    m_grbl->restoreParserState();
 }
 
 void ScriptDevice::setWorkCoordinates(double x, double y, double z, double a)
@@ -85,20 +85,20 @@ Coordinates* ScriptDevice::probeCoordinates()
 
 int ScriptDevice::bufferLength()
 {
-    return m_frmMain->m_grbl->bufferLength();
+    return m_grbl->bufferLength();
 }
 
 int ScriptDevice::commandsLength()
 {
-    return m_frmMain->m_grbl->commands().length();
+    return m_grbl->commandsCount();
 }
 
 int ScriptDevice::queueLength()
 {
-    return m_frmMain->m_grbl->queue().length();
+    return m_grbl->queueCount();
 }
 
 int ScriptDevice::state()
 {
-    return m_frmMain->m_grbl->deviceStateRaw();
+    return m_grbl->deviceState();
 }

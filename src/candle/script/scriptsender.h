@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-class frmMain;
+class GrblController;
 
 class ScriptSender : public QObject
 {
@@ -15,10 +15,10 @@ signals:
     void stateChanged(int state);
 
 public:
-    ScriptSender(frmMain *f);
+    ScriptSender(GrblController *grbl);
 
 private:
-    frmMain *m_frmMain;
+    GrblController *m_grbl;
 
     int state();
 };

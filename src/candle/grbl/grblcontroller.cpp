@@ -14,12 +14,14 @@ GrblController::GrblController(GrblSettingsProvider *settings,
                                 std::function<QString(QString)> scriptEvaluator,
                                 std::function<GrblErrorAction(QString)> errorDecision,
                                 std::function<bool()> keyboardControlActive,
+                                std::function<QString()> parserStatusProvider,
                                 QObject *parent)
     : QObject(parent)
     , m_settings(settings)
     , m_scriptEvaluator(scriptEvaluator)
     , m_errorDecision(errorDecision)
     , m_keyboardControlActive(keyboardControlActive)
+    , m_parserStatusProvider(parserStatusProvider)
     , m_senderState(SenderUnknown)
     , m_deviceState(DeviceUnknown)
     , m_sdRun(false)
@@ -75,6 +77,26 @@ void GrblController::setLineProvider(std::function<int()> count, std::function<Q
 void GrblController::sendRealtime(const QByteArray &data)
 {
     if (m_currentConnection) m_currentConnection->send(data);
+}
+
+void GrblController::shutdown()
+{
+    m_timerConnection.stop();
+
+    if (m_currentConnection && m_currentConnection->isConnected())
+        m_currentConnection->disconnect();
+
+    if (m_queue.length() > 0) {
+        m_commands.clear();
+        m_queue.clear();
+    }
+}
+
+void GrblController::stopJog()
+{
+    m_jogVector = QVector4D(0, 0, 0, 0);
+    m_queue.clear();
+    sendRealtime("\x85");
 }
 
 void GrblController::setSenderState(SenderState state)
@@ -285,6 +307,12 @@ void GrblController::sendNextFileCommands()
         m_fileCommandIndex++;
         command = m_lineAt(m_fileCommandIndex);
     }
+}
+
+void GrblController::storeParserState()
+{
+    m_storedParserStatus = m_parserStatusProvider().remove(
+                QRegExp("GC:|\\[|\\]|G[01234]\\s|M[0345]+\\s|\\sF[\\d\\.]+|\\sS[\\d\\.]+"));
 }
 
 void GrblController::restoreParserState()

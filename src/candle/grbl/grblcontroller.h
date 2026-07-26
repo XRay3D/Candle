@@ -113,6 +113,7 @@ public:
                              std::function<QString(QString)> scriptEvaluator,
                              std::function<GrblErrorAction(QString)> errorDecision,
                              std::function<bool()> keyboardControlActive,
+                             std::function<QString()> parserStatusProvider,
                              QObject *parent = nullptr);
     ~GrblController();
 
@@ -139,11 +140,16 @@ public:
     void sendRealtime(const QByteArray &data);
 
     void setSenderState(SenderState state);
+    SenderState senderState() const { return m_senderState; }
+    DeviceState deviceState() const { return m_deviceState; }
 
     int bufferLength() const;
     int commandsCount() const { return m_commands.count(); }
     int queueCount() const { return m_queue.count(); }
 
+    // Snapshots the visualizer's current parser-status text (via the
+    // injected provider) so restoreParserState() can replay it later.
+    void storeParserState();
     void restoreParserState();
 
     // Expands '{...}' script macros in a command via the injected evaluator.
@@ -153,36 +159,40 @@ public:
     static bool dataIsEnd(const QString &data);
     static bool dataIsReset(const QString &data);
 
-    // --- Temporary raw storage access -----------------------------------
-    // frmMain still owns UI logic (updateControlsState(), override sliders,
-    // jogStep/jogContinuous, file-transfer bookkeeping on user actions, ...)
-    // that reads/writes this state directly; these accessors let that logic
-    // keep working. Deleted once those call sites are migrated to a real
-    // API (Commit 5).
-    SenderState& senderStateRaw() { return m_senderState; }
-    DeviceState& deviceStateRaw() { return m_deviceState; }
-    bool& sdRun() { return m_sdRun; }
-    Connection*& connectionRef() { return m_currentConnection; }
-    QList<CommandAttributes>& commands() { return m_commands; }
-    QList<CommandQueue>& queue() { return m_queue; }
-    QTimer& timerConnection() { return m_timerConnection; }
-    QTimer& timerStateQuery() { return m_timerStateQuery; }
-    QString& storedParserStatusRaw() { return m_storedParserStatus; }
-    bool& homing() { return m_homing; }
-    bool& updateSpindleSpeedFlag() { return m_updateSpindleSpeed; }
-    bool& updateParserStatusFlag() { return m_updateParserStatus; }
-    bool& reseting() { return m_reseting; }
-    bool& resetCompleted() { return m_resetCompleted; }
-    bool& aborting() { return m_aborting; }
-    bool& statusReceivedFlag() { return m_statusReceived; }
-    int& fileCommandIndexRaw() { return m_fileCommandIndex; }
-    int& fileProcessedCommandIndexRaw() { return m_fileProcessedCommandIndex; }
-    int& probeIndexRaw() { return m_probeIndex; }
-    int& sdProcessedCommandIndex() { return m_sdProcessedCommandIndex; }
-    bool& absoluteCoordinates() { return m_absoluteCoordinates; }
-    bool& spindleCW() { return m_spindleCW; }
-    QVector4D& jogVector() { return m_jogVector; }
-    // ----------------------------------------------------------------------
+    // Stops the state-query/reconnect timers, disconnects if connected, and
+    // drops any in-flight/queued commands — the sequence frmMain's
+    // closeEvent() needs on app shutdown.
+    void shutdown();
+
+    void setStateQueryInterval(int ms) { m_timerStateQuery.setInterval(ms); }
+
+    bool sdRun() const { return m_sdRun; }
+    void setSdRun(bool run) { m_sdRun = run; }
+
+    void setHoming(bool homing) { m_homing = homing; }
+    void setAborting(bool aborting) { m_aborting = aborting; }
+    bool resetCompleted() const { return m_resetCompleted; }
+
+    int fileCommandIndex() const { return m_fileCommandIndex; }
+    void setFileCommandIndex(int index) { m_fileCommandIndex = index; }
+    int fileProcessedCommandIndex() const { return m_fileProcessedCommandIndex; }
+    void setFileProcessedCommandIndex(int index) { m_fileProcessedCommandIndex = index; }
+    int probeIndex() const { return m_probeIndex; }
+    void setProbeIndex(int index) { m_probeIndex = index; }
+    int sdProcessedCommandIndex() const { return m_sdProcessedCommandIndex; }
+    void setSdProcessedCommandIndex(int index) { m_sdProcessedCommandIndex = index; }
+
+    bool absoluteCoordinates() const { return m_absoluteCoordinates; }
+    bool spindleCW() const { return m_spindleCW; }
+
+    // Requests the '$G' parser-status follow-up query onTimerConnection()
+    // sends once idle (was setting m_updateParserStatus directly).
+    void requestSpindleSpeedUpdate() { m_updateSpindleSpeed = true; }
+
+    QVector4D jogVector() const { return m_jogVector; }
+    void addJogVector(const QVector4D &delta) { m_jogVector += delta; }
+    void removeJogVector(const QVector4D &delta) { m_jogVector -= delta; }
+    void stopJog();
 
 signals:
     // Fired once a response is fully accumulated, carrying the complete
@@ -252,6 +262,7 @@ private:
     std::function<QString(QString)> m_scriptEvaluator;
     std::function<GrblErrorAction(QString)> m_errorDecision;
     std::function<bool()> m_keyboardControlActive;
+    std::function<QString()> m_parserStatusProvider;
     std::function<int()> m_lineCount;
     std::function<QString(int)> m_lineAt;
 

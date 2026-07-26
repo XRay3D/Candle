@@ -1,12 +1,12 @@
 #include "scriptsender.h"
-#include "./frmmain.h"
+#include "grbl/grblcontroller.h"
 
-ScriptSender::ScriptSender(frmMain* f) : QObject(f)
+ScriptSender::ScriptSender(GrblController *grbl) : QObject(grbl)
 {
-    m_frmMain = f;
+    m_grbl = grbl;
 }
 
 int ScriptSender::state()
 {
-    return m_frmMain->m_grbl->senderStateRaw();
+    return m_grbl->senderState();
 }

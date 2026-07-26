@@ -3,7 +3,7 @@
 #include <QObject>
 #include "coordinates.h"
 
-class frmMain;
+class GrblController;
 
 class ScriptDevice : public QObject
 {
@@ -31,7 +31,7 @@ signals:
     void stateChanged(int state);
 
 public:
-    ScriptDevice(frmMain *f);
+    ScriptDevice(GrblController *grbl);
 
     void setWorkCoordinates(double x, double y, double z, double a);
     Coordinates* workCoordinates();
@@ -43,7 +43,7 @@ public:
     Coordinates* probeCoordinates();
 
 private:
-    frmMain *m_frmMain;
+    GrblController *m_grbl;
 
     Coordinates m_workCoordinates;
     Coordinates m_machineCoordinates;

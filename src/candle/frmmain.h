@@ -89,17 +89,21 @@ class frmMain : public QMainWindow
 
     friend class ScriptApp;
     friend class ScriptProgram;
-    friend class ScriptDevice;
-    friend class ScriptSender;
 
 public:
     explicit frmMain(QWidget *parent = 0);
     ~frmMain();
 
+    // ScriptDevice/ScriptSender talk to the controller directly — no
+    // friendship needed for that, just this accessor.
+    GrblController* grblController() const { return m_grbl; }
+
 signals:
-    void responseReceived(QString command, int tableIndex, QString response);
     void statusReceived(QString status);
-    void senderStateChanged(int state);
+    // Only still emitted directly for the "-1 (unknown)" override
+    // updateControlsState() fires when the port isn't open; normal
+    // protocol-driven transitions come from GrblController::deviceStateChanged
+    // (see initScriptWrapper()).
     void deviceStateChanged(int state);
     void settingsAboutToLoad();
     void settingsLoaded();
@@ -404,18 +408,10 @@ private:
     // Plugins
     void loadPlugins();
 
-    // Communication
-    void grblReset();
-    SendCommandResult sendCommand(QString command, int tableIndex = -1, bool showInConsole = true, bool wait = false);
-    void sendCommands(QString commands, int tableIndex = -1);
-    void sendNextFileCommands();
-
     // Parser
     void updateParser();
     void updateParserInBackground();
     void ensureParserUpdateNotRunning();
-    void storeParserState();
-    void restoreParserState();
     void storeOffsetsVars(QString response);
 
     // Files/models
@@ -461,7 +457,6 @@ private:
     bool isGCodeFile(QString fileName);
     bool isHeightmapFile(QString fileName);
     int buttonSize();
-    void setSenderState(SenderState state);
     QString getLineInitCommands(int row);
     void applyGrblSettings(QMap<int, float> set);
 
