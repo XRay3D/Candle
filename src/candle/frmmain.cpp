@@ -47,6 +47,7 @@ public:
     explicit FrmSettingsGrblAdapter(frmSettings *settings) : m_settings(settings) {}
 
     bool showUICommands() const override { return m_settings->showUICommands(); }
+    bool showProgramCommands() const override { return m_settings->showProgramCommands(); }
     bool ignoreErrors() const override { return m_settings->ignoreErrors(); }
     int units() const override { return m_settings->units(); }
     bool axisAEnabled() const override { return m_settings->axisAEnabled(); }
@@ -75,16 +76,25 @@ frmMain::frmMain(QWidget *parent) : QMainWindow(parent), ui(new Ui::frmMain)
     // actually asked to read anything from it.
     m_settings = new frmSettings(this);
 
-    // TODO: wire up the error-decision/keyboard-control callbacks in a later
-    // commit, once the protocol logic that needs them moves in (Commit 4).
+    // errorDecision/keyboardControlActive reference m_senderErrorBox/ui,
+    // both of which exist by the time either callback is actually invoked
+    // (constructed further down in this same constructor; GRBL traffic
+    // can't happen until well after it returns).
     m_grbl = new GrblController(
         new FrmSettingsGrblAdapter(m_settings),
         [this](QString expr) -> QString {
             QScriptValue v = m_scriptEngine.evaluate(expr);
             return v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4) : v.toString();
         },
-        [](QString) { return GrblErrorAction::Reset; },
-        [] { return false; },
+        [this](QString errors) -> GrblErrorAction {
+            m_senderErrorBox->setText(tr("Error message(s) received:\n") + errors);
+            m_senderErrorBox->checkBox()->setChecked(false);
+            qApp->beep();
+            int result = m_senderErrorBox->exec();
+            if (m_senderErrorBox->checkBox()->isChecked()) m_settings->setIgnoreErrors(true);
+            return result == QMessageBox::Ignore ? GrblErrorAction::Ignore : GrblErrorAction::Reset;
+        },
+        [this] { return ui->chkKeyboardControl->isChecked(); },
         this);
 
     initVariables();
@@ -115,12 +125,26 @@ frmMain::frmMain(QWidget *parent) : QMainWindow(parent), ui(new Ui::frmMain)
               << ui->actJogZMinus << ui->actJogZPlus;
     foreach (QAction* a, findChildren<QAction*>()) if (!noActions.contains(a)) addAction(a);
 
-    // Setup timers
-    connect(&m_grbl->timerConnection(), &QTimer::timeout, this, &frmMain::onTimerConnection);
-    connect(&m_grbl->timerStateQuery(), &QTimer::timeout, this, &frmMain::onTimerStateQuery);
+    // GRBL controller reactions (timers themselves are wired/started inside
+    // GrblController's own constructor now).
+    connect(m_grbl, &GrblController::statusUpdated, this, &frmMain::onGrblStatusUpdated);
+    connect(m_grbl, &GrblController::commandSent, this, &frmMain::onGrblCommandSent);
+    connect(m_grbl, &GrblController::programCommandSent, this, &frmMain::onGrblProgramCommandSent);
+    connect(m_grbl, &GrblController::commandResponded, this, &frmMain::onGrblCommandResponded);
+    connect(m_grbl, &GrblController::transferCompleted, this, &frmMain::onGrblTransferCompleted);
+    connect(m_grbl, &GrblController::toolChangeRequested, this, &frmMain::onGrblToolChangeRequested);
+    connect(m_grbl, &GrblController::settingsResponseReceived, this, &frmMain::onGrblSettingsResponseReceived);
+    connect(m_grbl, &GrblController::connectionOpened, this, &frmMain::onGrblConnectionOpened);
+    connect(m_grbl, &GrblController::connectionClosed, this, &frmMain::onGrblConnectionClosed);
+    connect(m_grbl, &GrblController::connectionErrorOccurred, this, &frmMain::onGrblConnectionErrorOccurred);
+    connect(m_grbl, &GrblController::unprocessedDataReceived, this, &frmMain::onGrblUnprocessedDataReceived);
+    connect(m_grbl, &GrblController::hardwareResetDetected, this, &frmMain::onGrblHardwareResetDetected);
+    connect(m_grbl, &GrblController::spindleSpeedUpdateRequested, this, &frmMain::onGrblSpindleSpeedUpdateRequested);
+    connect(m_grbl, &GrblController::errorTextUpdated, this, &frmMain::onGrblErrorTextUpdated);
 
-    m_grbl->timerConnection().start(1000);
-    m_grbl->timerStateQuery().start();
+    m_grbl->setLineProvider(
+        [this] { return m_currentModel->rowCount(); },
+        [this](int i) { return m_currentModel->data().at(i).command; });
 
     // Event filter
     qApp->installEventFilter(this);
@@ -129,21 +153,6 @@ frmMain::frmMain(QWidget *parent) : QMainWindow(parent), ui(new Ui::frmMain)
 void frmMain::initVariables()
 {
     // Initializing variables
-    m_deviceStatuses[DeviceUnknown] = "Unknown";
-    m_deviceStatuses[DeviceIdle] = "Idle";
-    m_deviceStatuses[DeviceAlarm] = "Alarm";
-    m_deviceStatuses[DeviceRun] = "Run";
-    m_deviceStatuses[DeviceHome] = "Home";
-    m_deviceStatuses[DeviceHold0] = "Hold:0";
-    m_deviceStatuses[DeviceHold1] = "Hold:1";
-    m_deviceStatuses[DeviceQueue] = "Queue";
-    m_deviceStatuses[DeviceCheck] = "Check";
-    m_deviceStatuses[DeviceDoor0] = "Door:0";
-    m_deviceStatuses[DeviceDoor1] = "Door:1";
-    m_deviceStatuses[DeviceDoor2] = "Door:2";
-    m_deviceStatuses[DeviceDoor3] = "Door:3";
-    m_deviceStatuses[DeviceJog] = "Jog";
-    m_deviceStatuses[DeviceSleep] = "Sleep";
 
 	m_statusCaptions[DeviceUnknown] = tr("Unknown");
 	m_statusCaptions[DeviceIdle] = tr("Idle");
@@ -1939,831 +1948,598 @@ void frmMain::on_sliProgram_valueChanged(int value)
         ));
 }
 
-void frmMain::onConnectionDataReceived(QString data)
+void frmMain::onGrblStatusUpdated(const GrblStatusReport &report)
 {
-    // Filter prereset responses
-    if (m_grbl->reseting()) {
-        if (!GrblController::dataIsReset(data)) return;
-        else {
-            m_grbl->reseting() = false;
-            m_grbl->timerStateQuery().setInterval(m_settings->queryStateTime());
+    DeviceState state = report.state;
+
+    // Update machine coordinates
+    if (report.hasMachinePos) {
+        ui->txtMPosX->setValue(report.machinePos.x());
+        ui->txtMPosY->setValue(report.machinePos.y());
+        ui->txtMPosZ->setValue(report.machinePos.z());
+        auto a = report.machinePos.w();
+        if (ui->txtMPosA->minimum() > a || ui->txtMPosA->maximum() < a) {
+            ui->txtMPosA->setMaximum(ui->txtMPosA->maximum() * 10);
+            ui->txtMPosA->setMinimum(-ui->txtMPosA->maximum());
         }
-    }
+        ui->txtMPosA->setValue(a);
 
-    // Status response
-    if (data[0] == '<') {
-        DeviceState state = DeviceUnknown;
-
-        m_grbl->statusReceivedFlag() = true;
-
-        // Update machine coordinates
-        static QRegExp mpx("MPos:([^,]*),([^,]*),([^,>|]*)(?:,([^,|]*))*");
-        if (mpx.indexIn(data) != -1) {
-            ui->txtMPosX->setValue(mpx.cap(1).toDouble());
-            ui->txtMPosY->setValue(mpx.cap(2).toDouble());
-            ui->txtMPosZ->setValue(mpx.cap(3).toDouble());
-            auto a = mpx.cap(4).toDouble();
-            if (ui->txtMPosA->minimum() > a || ui->txtMPosA->maximum() < a) {
-                ui->txtMPosA->setMaximum(ui->txtMPosA->maximum() * 10);
-                ui->txtMPosA->setMinimum(-ui->txtMPosA->maximum());
-            }
-            ui->txtMPosA->setValue(a);
-
-            m_scriptApp->device()->setMachineCoordinates(ui->txtMPosX->value(), ui->txtMPosY->value(),
-                ui->txtMPosZ->value(), ui->txtMPosA->value());
-
-            // TODO: remove
-            // Update stored vars
-            m_storedVars.setCoords("M", QVector3D(
-                ui->txtMPosX->value(),
-                ui->txtMPosY->value(),
-                ui->txtMPosZ->value()));
-        }
-
-        // Status
-        static QRegExp stx("<([^,^>^|]*)");
-        if (stx.indexIn(data) != -1) {
-            state = m_deviceStatuses.key(stx.cap(1), DeviceUnknown);
-
-            // Update status
-            if (state != m_grbl->deviceStateRaw()) {
-                ui->txtStatus->setText(m_statusCaptions[state]);
-                ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
-                                                .arg(m_statusBackColors[state]).arg(m_statusForeColors[state]));
-            }
-
-            // Update controls
-            ui->cmdCheck->setEnabled(state != DeviceRun && (m_grbl->senderStateRaw() == SenderStopped));
-            ui->cmdCheck->setChecked(state == DeviceCheck);
-            ui->cmdHold->setChecked(state == DeviceHold0 || state == DeviceHold1 || state == DeviceQueue);
-            ui->cmdSpindle->setEnabled(state == DeviceHold0 || ((m_grbl->senderStateRaw() != SenderTransferring) &&
-                (m_grbl->senderStateRaw() != SenderStopping) && !m_grbl->sdRun()));
-
-            // Update "elapsed time" timer
-            if ((m_grbl->senderStateRaw() == SenderTransferring) || (m_grbl->senderStateRaw() == SenderStopping)) {
-                QTime time(0, 0, 0);
-                int elapsed = m_startTime.elapsed();
-                ui->glwVisualizer->setSpendTime(time.addMSecs(elapsed));
-            }
-
-            // Test for job complete
-            if ((m_grbl->senderStateRaw() == SenderStopping) &&
-                    ((state == DeviceIdle && m_grbl->deviceStateRaw() == DeviceRun) || state == DeviceCheck))
-            {
-                completeTransfer();
-            }
-
-            // Abort
-            static double x = qQNaN();
-            static double y = qQNaN();
-            static double z = qQNaN();
-
-            if (m_grbl->aborting()) {
-                switch (state) {
-                    case DeviceIdle: // Idle
-                        if ((m_grbl->senderStateRaw() == SenderStopped) && m_grbl->resetCompleted()) {
-                            m_grbl->aborting() = false;
-                            restoreParserState();
-                            restoreOffsets();
-                            return;
-                        }
-                        break;
-                    case DeviceHold0: // Hold
-                    case DeviceHold1:
-                    case DeviceQueue:
-                        if (!m_grbl->reseting() && compareCoordinates(x, y, z)) {
-                            x = qQNaN();
-                            y = qQNaN();
-                            z = qQNaN();
-                            grblReset();
-                        }
-                        else {
-                            x = ui->txtMPosX->value();
-                            y = ui->txtMPosY->value();
-                            z = ui->txtMPosZ->value();
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-        }
-
-        // Store work offset
-        static QVector4D workOffset;
-        static QRegExp wpx("WCO:([^,]*),([^,]*),([^,>|]*)(?:,([^,>|]*))*");
-
-        if (wpx.indexIn(data) != -1)
-        {
-            workOffset = QVector4D(wpx.cap(1).toDouble(), wpx.cap(2).toDouble(), wpx.cap(3).toDouble(),
-                                    wpx.cap(4).toDouble());
-
-            m_machineBoundsDrawer->setTranslation(
-                -QVector3D(
-                    toMetric(workOffset.x()),
-                    toMetric(workOffset.y()),
-                    m_settings->referenceZPlus()
-                        ? toMetric(workOffset.z()) - m_settings->machineBounds().z()
-                        : toMetric(workOffset.z())
-                ));
-        }
-
-        // Update work coordinates
-        ui->txtWPosX->setValue(ui->txtMPosX->value() - workOffset.x());
-        ui->txtWPosY->setValue(ui->txtMPosY->value() - workOffset.y());
-        ui->txtWPosZ->setValue(ui->txtMPosZ->value() - workOffset.z());
-
-        double a = ui->txtMPosA->value() - workOffset.w();
-        if (ui->txtWPosA->minimum() > a || ui->txtWPosA->maximum() < a) {
-            ui->txtWPosA->setMaximum(ui->txtWPosA->maximum() * 10);
-            ui->txtWPosA->setMinimum(-ui->txtWPosA->maximum());
-        }
-        ui->txtWPosA->setValue(a);
-
-        m_scriptApp->device()->setWorkCoordinates(ui->txtWPosX->value(), ui->txtWPosY->value(),
-            ui->txtWPosZ->value(), ui->txtWPosA->value());
+        m_scriptApp->device()->setMachineCoordinates(ui->txtMPosX->value(), ui->txtMPosY->value(),
+            ui->txtMPosZ->value(), ui->txtMPosA->value());
 
         // TODO: remove
         // Update stored vars
-        m_storedVars.setCoords("W", QVector3D(
-                ui->txtWPosX->value(),
-                ui->txtWPosY->value(),
-                ui->txtWPosZ->value()));
+        m_storedVars.setCoords("M", QVector3D(
+            ui->txtMPosX->value(),
+            ui->txtMPosY->value(),
+            ui->txtMPosZ->value()));
+    }
 
-        // Update tool position
-        QVector3D toolPosition;
-        if (!(state == DeviceCheck && m_grbl->fileProcessedCommandIndexRaw() < m_currentModel->rowCount() - 1))
-        {
-            toolPosition = QVector3D(toMetric(ui->txtWPosX->value()),
-                                        toMetric(ui->txtWPosY->value()),
-                                        toMetric(ui->txtWPosZ->value()));
+    // Update status
+    if (state != report.previousState) {
+        ui->txtStatus->setText(m_statusCaptions[state]);
+        ui->txtStatus->setStyleSheet(QString("background-color: %1; color: %2;")
+                                        .arg(m_statusBackColors[state]).arg(m_statusForeColors[state]));
+    }
 
-            auto normalizedRotation = Util::normalizeRotation(ui->txtWPosA->value());
+    // Update controls
+    ui->cmdCheck->setEnabled(state != DeviceRun && (m_grbl->senderStateRaw() == SenderStopped));
+    ui->cmdCheck->setChecked(state == DeviceCheck);
+    ui->cmdHold->setChecked(state == DeviceHold0 || state == DeviceHold1 || state == DeviceQueue);
+    ui->cmdSpindle->setEnabled(state == DeviceHold0 || ((m_grbl->senderStateRaw() != SenderTransferring) &&
+        (m_grbl->senderStateRaw() != SenderStopping) && !m_grbl->sdRun()));
 
-            m_toolDrawer->setToolPosition(
-                m_codeDrawer->getIgnoreZ() ? QVector3D(toolPosition.x(), toolPosition.y(), 0) : toolPosition);
+    // Update "elapsed time" timer
+    if ((m_grbl->senderStateRaw() == SenderTransferring) || (m_grbl->senderStateRaw() == SenderStopping)) {
+        QTime time(0, 0, 0);
+        int elapsed = m_startTime.elapsed();
+        ui->glwVisualizer->setSpendTime(time.addMSecs(elapsed));
+    }
 
-            if (m_settings->axisAEnabled() && m_currentDrawer->viewParser()->axisRotationUsed(GcodeViewParse::RotationAxisA)) {
-                m_codeDrawer->setRotation(
-                    normalizedRotation,
-                    Util::rotationVector(m_settings->axisAX() ? Util::RotationVectorX : Util::RotationVectorY)
-                );
-            } else {
-                m_codeDrawer->setRotation(
-                    0,
-                    Util::rotationVector(m_settings->axisAX() ? Util::RotationVectorX : Util::RotationVectorY)
-                );
-            }
-            m_selectionDrawer->setRotation(m_codeDrawer->rotation());
+    // Store work offset
+    QVector4D workOffset = report.workOffset;
+
+    m_machineBoundsDrawer->setTranslation(
+        -QVector3D(
+            toMetric(workOffset.x()),
+            toMetric(workOffset.y()),
+            m_settings->referenceZPlus()
+                ? toMetric(workOffset.z()) - m_settings->machineBounds().z()
+                : toMetric(workOffset.z())
+        ));
+
+    // Update work coordinates
+    ui->txtWPosX->setValue(ui->txtMPosX->value() - workOffset.x());
+    ui->txtWPosY->setValue(ui->txtMPosY->value() - workOffset.y());
+    ui->txtWPosZ->setValue(ui->txtMPosZ->value() - workOffset.z());
+
+    double a = ui->txtMPosA->value() - workOffset.w();
+    if (ui->txtWPosA->minimum() > a || ui->txtWPosA->maximum() < a) {
+        ui->txtWPosA->setMaximum(ui->txtWPosA->maximum() * 10);
+        ui->txtWPosA->setMinimum(-ui->txtWPosA->maximum());
+    }
+    ui->txtWPosA->setValue(a);
+
+    m_scriptApp->device()->setWorkCoordinates(ui->txtWPosX->value(), ui->txtWPosY->value(),
+        ui->txtWPosZ->value(), ui->txtWPosA->value());
+
+    // TODO: remove
+    // Update stored vars
+    m_storedVars.setCoords("W", QVector3D(
+            ui->txtWPosX->value(),
+            ui->txtWPosY->value(),
+            ui->txtWPosZ->value()));
+
+    // Update tool position
+    QVector3D toolPosition;
+    if (!(state == DeviceCheck && m_grbl->fileProcessedCommandIndexRaw() < m_currentModel->rowCount() - 1))
+    {
+        toolPosition = QVector3D(toMetric(ui->txtWPosX->value()),
+                                    toMetric(ui->txtWPosY->value()),
+                                    toMetric(ui->txtWPosZ->value()));
+
+        auto normalizedRotation = Util::normalizeRotation(ui->txtWPosA->value());
+
+        m_toolDrawer->setToolPosition(
+            m_codeDrawer->getIgnoreZ() ? QVector3D(toolPosition.x(), toolPosition.y(), 0) : toolPosition);
+
+        if (m_settings->axisAEnabled() && m_currentDrawer->viewParser()->axisRotationUsed(GcodeViewParse::RotationAxisA)) {
+            m_codeDrawer->setRotation(
+                normalizedRotation,
+                Util::rotationVector(m_settings->axisAX() ? Util::RotationVectorX : Util::RotationVectorY)
+            );
+        } else {
+            m_codeDrawer->setRotation(
+                0,
+                Util::rotationVector(m_settings->axisAX() ? Util::RotationVectorX : Util::RotationVectorY)
+            );
         }
+        m_selectionDrawer->setRotation(m_codeDrawer->rotation());
+    }
 
-        // Process SD card status
-        // SD:77.88,/sd/cutout1.nc
-        static QRegExp sdx("SD:([^,]*),([^,>|]*)");
-        if (sdx.indexIn(data) != -1)
+    // Process SD card status
+    // SD:77.88,/sd/cutout1.nc
+    if (report.sdActive)
+    {
+        if (!m_grbl->sdRun())
         {
-            if (!m_grbl->sdRun())
-            {
-                m_grbl->sdRun() = true;
-                m_grbl->sdProcessedCommandIndex() = -1;
-                m_lastDrawnLineIndex = 0;
-                ui->glwVisualizer->setParserStatus(QString("[🔴 SD/RUN '%1']").arg(sdx.cap(2)));
-                updateControlsState();
-            }
-
-            auto sdSync = QFileInfo(m_programFileName).fileName().toLower() == QFileInfo(sdx.cap(2)).fileName().toLower();
-
-            if (sdSync) {
-                auto percentage = sdx.cap(1).toDouble();
-                auto processedCommandIndex = (m_currentModel->rowCount() - 2) / 100.0 * percentage;
-
-                for (int i = m_grbl->sdProcessedCommandIndex() + 1; i <= processedCommandIndex; i++)
-                    m_currentModel->setData(m_currentModel->index(i, 2), GCodeItem::Processed);
-                m_grbl->sdProcessedCommandIndex() = processedCommandIndex;
-
-                GcodeViewParse *parser = m_currentDrawer->viewParser();
-                QList<LineSegment*> *list = parser->getLineSegments();
-
-                int i;
-                QList<int> drawnLines;
-
-                for (i = m_lastDrawnLineIndex; i < list->count()
-                    && list->at(i)->getLineNumber() <= (m_currentModel->data().at(processedCommandIndex).line); i++)
-                {
-                    drawnLines << i;
-                }
-
-                if (!drawnLines.isEmpty()) {
-                    foreach (int j, drawnLines) {
-                        list->at(j)->setIsDrawn(true);
-                    }
-                    m_currentDrawer->update(drawnLines);
-
-                    if (ui->chkAutoScroll->isChecked()) {
-                        scrollToTableIndex(m_currentModel->index(processedCommandIndex, 0));
-                    }
-
-                    if (i < list->count())
-                        m_lastDrawnLineIndex = i;
-                }
-
-#ifdef Q_OS_WIN
-                if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7)
-                {
-                    if (!m_taskBarProgress->isVisible()) {
-                        if (m_taskBarProgress) {
-                            m_taskBarProgress->setMaximum(m_currentModel->rowCount() - 2);
-                            m_taskBarProgress->show();
-                        }
-                    }
-
-                    if (m_taskBarProgress)
-                        m_taskBarProgress->setValue(processedCommandIndex);
-                }
-#endif
-            }
-            else
-            {
-#ifdef Q_OS_WIN
-                if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7)
-                {
-                    if (m_taskBarProgress->isVisible())
-                        m_taskBarProgress->hide();
-                }
-#endif
-            }
-        }
-        else if (m_grbl->sdRun())
-        {
-            m_grbl->sdRun() = false;
+            m_grbl->sdRun() = true;
+            m_grbl->sdProcessedCommandIndex() = -1;
+            m_lastDrawnLineIndex = 0;
+            ui->glwVisualizer->setParserStatus(QString("[🔴 SD/RUN '%1']").arg(report.sdFileName));
             updateControlsState();
-
-            qApp->beep();
-            QMessageBox::information(this, qApp->applicationDisplayName(), tr("Sending file from SD card completed"));
         }
 
-        // Toolpath shadowing
-        static QList<SenderState> shadowingSenderStates { SenderTransferring, SenderStopping, SenderPausing, SenderPaused };
-        if ((shadowingSenderStates.contains(m_grbl->senderStateRaw()) && state != DeviceCheck)) {
+        auto sdSync = QFileInfo(m_programFileName).fileName().toLower() == QFileInfo(report.sdFileName).fileName().toLower();
+
+        if (sdSync) {
+            auto percentage = report.sdPercentage;
+            auto processedCommandIndex = (m_currentModel->rowCount() - 2) / 100.0 * percentage;
+
+            for (int i = m_grbl->sdProcessedCommandIndex() + 1; i <= processedCommandIndex; i++)
+                m_currentModel->setData(m_currentModel->index(i, 2), GCodeItem::Processed);
+
+            m_grbl->sdProcessedCommandIndex() = processedCommandIndex;
+
             GcodeViewParse *parser = m_currentDrawer->viewParser();
-
-            bool toolOnToolpath = false;
-
-            QList<int> drawnLines;
             QList<LineSegment*> *list = parser->getLineSegments();
 
-            for (int i = m_lastDrawnLineIndex; i < list->count()
-                && list->at(i)->getLineNumber() <= (m_currentModel->data().at(m_grbl->fileProcessedCommandIndexRaw()).line + 1); i++)
+            int i;
+            QList<int> drawnLines;
+
+            for (i = m_lastDrawnLineIndex; i < list->count()
+                && list->at(i)->getLineNumber() <= (m_currentModel->data().at(processedCommandIndex).line); i++)
             {
-                if (list->at(i)->contains(m_codeDrawer->rotation().transposed() * toolPosition))
-                {
-                    toolOnToolpath = true;
-                    m_lastDrawnLineIndex = i;
-                    break;
-                }
                 drawnLines << i;
             }
 
-            if (toolOnToolpath) {
-                foreach (int i, drawnLines) {
-                    list->at(i)->setIsDrawn(true);
+            if (!drawnLines.isEmpty()) {
+                foreach (int j, drawnLines) {
+                    list->at(j)->setIsDrawn(true);
                 }
-                if (!drawnLines.isEmpty()) {
-                    m_currentDrawer->update(drawnLines);
+                m_currentDrawer->update(drawnLines);
+
+                if (ui->chkAutoScroll->isChecked()) {
+                    scrollToTableIndex(m_currentModel->index(processedCommandIndex, 0));
                 }
+
+                if (i < list->count())
+                    m_lastDrawnLineIndex = i;
             }
-            else if (m_lastDrawnLineIndex < list->count() && m_lastDrawnLineIndex > 0)
+
+#ifdef Q_OS_WIN
+            if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7)
             {
-                qWarning(generalLogCategory)
-                << QString("Tool not on toolpath. Last drawn line index: %1, model line: %2, processed index: %3")
-                    .arg(list->at(m_lastDrawnLineIndex)->getLineNumber())
-                    .arg(m_currentModel->data().at(m_grbl->fileProcessedCommandIndexRaw()).line)
-                    .arg(m_grbl->fileProcessedCommandIndexRaw());
-            }
-        }
+                if (!m_taskBarProgress->isVisible()) {
+                    if (m_taskBarProgress) {
+                        m_taskBarProgress->setMaximum(m_currentModel->rowCount() - 2);
+                        m_taskBarProgress->show();
+                    }
+                }
 
-        // Get overridings
-        static QRegExp ov("Ov:([^,]*),([^,]*),([^,^>^|]*)");
-        if (ov.indexIn(data) != -1)
+                if (m_taskBarProgress)
+                    m_taskBarProgress->setValue(processedCommandIndex);
+            }
+#endif
+        }
+        else
         {
-            updateOverride(ui->slbFeedOverride, ov.cap(1).toInt(), '\x91');
-            updateOverride(ui->slbSpindleOverride, ov.cap(3).toInt(), '\x9a');
-
-            int rapid = ov.cap(2).toInt();
-            ui->slbRapidOverride->setCurrentValue(rapid);
-
-            int target = ui->slbRapidOverride->isChecked() ? ui->slbRapidOverride->value() : 100;
-
-            if (rapid != target) switch (target) {
-            case 25:
-                m_grbl->connectionRef()->send("\x97");
-                break;
-            case 50:
-                m_grbl->connectionRef()->send("\x96");
-                break;
-            case 100:
-                m_grbl->connectionRef()->send("\0x95");
-                break;
+#ifdef Q_OS_WIN
+            if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7)
+            {
+                if (m_taskBarProgress->isVisible())
+                    m_taskBarProgress->hide();
             }
-
-            // Update pins state
-            QString pinState;
-            static QRegExp pn("Pn:([^|^>]*)");
-            if (pn.indexIn(data) != -1) {
-                pinState.append(QString(tr("PS: %1")).arg(pn.cap(1)));
-            }
-
-            // Process spindle state
-            static QRegExp as("A:([^,^>^|]+)");
-            if (as.indexIn(data) != -1) {
-                QString q = as.cap(1);
-                ui->cmdFlood->setChecked(q.contains("F"));
-
-                if (!pinState.isEmpty()) pinState.append(" / ");
-                pinState.append(QString(tr("AS: %1")).arg(as.cap(1)));
-            }
-            ui->glwVisualizer->setPinState(pinState);
+#endif
         }
-
-        // Get feed/spindle values
-        static QRegExp fs("FS:([^,]*),([^,^|^>]*)");
-        if (fs.indexIn(data) != -1) {
-            auto spindleSpeed = fs.cap(2);
-            if (spindleSpeed != "0") {
-                if ((!m_timerToolAnimation.isActive())) {
-                    m_timerToolAnimation.start(25, this);
-                    ui->cmdSpindle->setChecked(true);
-                }
-                ui->slbSpindle->setCurrentValue(spindleSpeed.toDouble());
-            } else if (m_timerToolAnimation.isActive()) {
-                m_timerToolAnimation.stop();
-                ui->cmdSpindle->setChecked(false);
-            }
-            ui->glwVisualizer->setSpeedState((QString(tr("F/S: %1 / %2")).arg(fs.cap(1)).arg(spindleSpeed)));
-        }
-
-        // Store device state
-        setDeviceState(state);
-
-        // Update continuous jog
-        jogContinuous();
-
-        // Emit status signal
-        emit statusReceived(data);
-
-    // Command response
-    } else if (data.length() > 0) {
-
-        if (m_grbl->commands().length() > 0 && !GrblController::dataIsFloating(data)
-                && !(m_grbl->commands()[0].command != "[CTRL+X]" && GrblController::dataIsReset(data))) {
-
-            static QString response; // Full response string
-
-            if ((m_grbl->commands()[0].command != "[CTRL+X]" && GrblController::dataIsEnd(data))
-                    || (m_grbl->commands()[0].command == "[CTRL+X]" && GrblController::dataIsReset(data))) {
-
-                response.append(data);
-
-                // Take command from buffer
-                CommandAttributes ca = m_grbl->commands().takeFirst();
-                QTextBlock tb = ui->txtConsole->document()->findBlockByNumber(ca.consoleIndex);
-                QTextCursor tc(tb);
-
-                QString uncomment = GcodePreprocessorUtils::removeComment(ca.command).toUpper();
-
-                // TODO: remove/rework
-                // Store current coordinate system
-                if (uncomment == "$G") {
-                    static QRegExp g("G5[4-9]");
-                    if (g.indexIn(response) != -1) {
-                        m_storedVars.setCS(g.cap(0));
-                    }
-                    static QRegExp t("T(\\d+)(?!\\d)");
-                    if (t.indexIn(response) != -1) {
-                        m_storedVars.setTool(g.cap(1).toInt());
-                    }
-                }
-
-                // TODO: Store firmware version, features, buffer size on $I command
-                // [VER:1.1d.20161014:Some string]
-                // [OPT:VL,15,128]
-
-                // Restore absolute/relative coordinate system after jog
-                if (uncomment == "$G" && ca.tableIndex == -2) {
-                    if (ui->chkKeyboardControl->isChecked()) m_grbl->absoluteCoordinates() = response.contains("G90");
-                    else if (response.contains("G90")) sendCommand("G90", -1, m_settings->showUICommands());
-                }
-
-                // Process parser status
-                if (uncomment == "$G" && ca.tableIndex == -3) {
-                    // Update status in visualizer window
-                    ui->glwVisualizer->setParserStatus(response.left(response.indexOf("; ")));
-
-                    // Store parser status
-                    if ((m_grbl->senderStateRaw() == SenderTransferring) || (m_grbl->senderStateRaw() == SenderStopping)) storeParserState();
-
-                    // Spindle speed
-                    QRegExp rx(".*S([\\d\\.]+)");
-                    if (rx.indexIn(response) != -1) {
-                        double speed = rx.cap(1).toDouble();
-                        ui->slbSpindle->setCurrentValue(speed);
-                    }
-                    m_grbl->spindleCW() = !response.contains("M4");
-
-                    m_grbl->updateParserStatusFlag() = true;
-                }
-
-                // Offsets
-                if (uncomment == "$#") storeOffsetsVars(response);
-
-                // Settings response
-                if (uncomment == "$$" && ca.tableIndex == -2) {
-                    processSettingsResponse(response);
-                    setupCoordsTextboxes();
-                }
-
-                // Homing response
-                if ((uncomment == "$H" || uncomment == "$T") && m_grbl->homing()) m_grbl->homing() = false;
-
-                // Reset complete response
-                if (uncomment == "[CTRL+X]") {
-                    m_grbl->resetCompleted() = true;
-                    m_grbl->updateParserStatusFlag() = true;
-
-                    // Query grbl settings
-                    sendCommand("$$", -2, false);
-                    sendCommand("$#", -2, false, true);
-                }
-
-                // Clear command buffer on "M2" & "M30" command (old firmwares)
-                static QRegExp M230("(M0*2|M30)(?!\\d)");
-                if (uncomment.contains(M230) && response.contains("ok") && !response.contains("Pgm End")) {
-                    m_grbl->commands().clear();
-                    m_grbl->queue().clear();
-                }
-
-                // Update probe coords on user commands
-                if (uncomment.contains("G38.2") && ca.tableIndex < 0) {
-                    static QRegExp PRB(".*PRB:([^,]*),([^,]*),([^,:]*)(?:,([^,:]*))*");
-                    if (PRB.indexIn(response) != -1) {
-                        m_scriptApp->device()->setProbeCoordinates(PRB.cap(1).toDouble(), PRB.cap(2).toDouble(),
-                            PRB.cap(3).toDouble(), PRB.cap(4).toDouble());
-
-                        // TODO: remove
-                        m_storedVars.setCoords("PRB", QVector3D(
-                            PRB.cap(1).toDouble(),
-                            PRB.cap(2).toDouble(),
-                            PRB.cap(3).toDouble()
-                        ));
-                    }
-                }
-
-                // Process probing on heightmap mode only from table commands
-                if (uncomment.contains("G38.2") && m_heightMapMode && ca.tableIndex > -1) {
-                    // Get probe Z coordinate
-                    // "[PRB:0.000,0.000,0.000:0];ok"
-                    // "[PRB:0.000,0.000,0.000,0.000:0];ok"
-                    QRegExp rx(".*PRB:([^,]*),([^,]*),([^,:]*)");
-                    double z = qQNaN();
-                    if (rx.indexIn(response) != -1) {
-                        z = toMetric(rx.cap(3).toDouble());
-                    }
-
-                    static double firstZ;
-                    if (m_grbl->probeIndexRaw() == -1) {
-                        firstZ = z;
-                        z = 0;
-                    } else {
-                        // Calculate delta Z
-                        z -= firstZ;
-
-                        // Calculate table indexes
-                        int row = (m_grbl->probeIndexRaw() / m_heightMapModel.columnCount());
-                        int column = m_grbl->probeIndexRaw() - row * m_heightMapModel.columnCount();
-                        if (row % 2) column = m_heightMapModel.columnCount() - 1 - column;
-
-                        // Store Z in table
-                        m_heightMapModel.setData(m_heightMapModel.index(row, column), z, Qt::UserRole);
-                        ui->tblHeightMap->update(m_heightMapModel.index(m_heightMapModel.rowCount() - 1 - row, column));
-                        updateHeightMapInterpolationDrawer();
-                    }
-
-                    m_grbl->probeIndexRaw()++;
-                }
-
-                // Change state query time on check mode on
-                if (uncomment.contains(QRegExp("$[cC]"))) {
-                    m_grbl->timerStateQuery().setInterval(response.contains("Enable") ? 1000 : m_settings->queryStateTime());
-                }
-
-                // Add response to console
-                if (tb.isValid() && tb.text() == ca.command) {
-
-                    bool scrolledDown = ui->txtConsole->verticalScrollBar()->value()
-                        == ui->txtConsole->verticalScrollBar()->maximum();
-
-                    // Update text block numbers
-                    int blocksAdded = response.count("; ");
-
-                    if (blocksAdded > 0) for (int i = 0; i < m_grbl->commands().count(); i++) {
-                        if (m_grbl->commands()[i].consoleIndex != -1) m_grbl->commands()[i].consoleIndex += blocksAdded;
-                    }
-
-                    tc.beginEditBlock();
-                    tc.movePosition(QTextCursor::EndOfBlock);
-
-                    tc.insertText(" < " + QString(response).replace("; ", "\r\n"));
-                    tc.endEditBlock();
-
-                    if (scrolledDown) ui->txtConsole->verticalScrollBar()->setValue(
-                        ui->txtConsole->verticalScrollBar()->maximum());
-                }
-
-                // Check queue
-                static bool processingQueue = false;
-                if (m_grbl->queue().length() > 0 && !processingQueue) {
-                    processingQueue = true;
-                    while (m_grbl->queue().length() > 0) {
-                        CommandQueue cq = m_grbl->queue().takeFirst();
-                        SendCommandResult r = sendCommand(cq.command, cq.tableIndex, cq.showInConsole);
-                        if (r == SendDone) {
-                            break;
-                        } else if (r == SendQueue) {
-                            m_grbl->queue().prepend(m_grbl->queue().takeLast());
-                            break;
-                        }
-                    }
-                    processingQueue = false;
-                }
-
-                // Add response to table, send next program commands
-                if (m_grbl->senderStateRaw() != SenderStopped) {
-                    // Only if command from table
-                    if (ca.tableIndex > -1) {
-                        m_currentModel->setData(m_currentModel->index(ca.tableIndex, 2), GCodeItem::Processed);
-                        m_currentModel->setData(m_currentModel->index(ca.tableIndex, 3), response);
-
-                        m_grbl->fileProcessedCommandIndexRaw() = ca.tableIndex;
-
-                        if (ui->chkAutoScroll->isChecked() && ca.tableIndex != -1) {
-                            scrollToTableIndex(m_currentModel->index(ca.tableIndex + 1, 0));
-                        }
-                    }
-
-                    // Update taskbar progress
-    #ifdef Q_OS_WIN
-                    if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
-                        if (m_taskBarProgress) m_taskBarProgress->setValue(m_grbl->fileProcessedCommandIndexRaw());
-                    }
-    #endif
-                    // Process error messages
-                    static bool holding = false;
-                    static QString errors;
-
-                    if (ca.tableIndex > -1 && response.toUpper().contains("ERROR") && !m_settings->ignoreErrors()) {
-                        errors.append(QString::number(ca.tableIndex + 1) + ": " + ca.command
-                                        + " < " + response + "\n");
-
-                        m_senderErrorBox->setText(tr("Error message(s) received:\n") + errors);
-
-                        if (!holding) {
-                            holding = true;         // Hold transmit while messagebox is visible
-                            response.clear();
-
-                            m_grbl->connectionRef()->send("!");
-                            m_senderErrorBox->checkBox()->setChecked(false);
-                            qApp->beep();
-                            int result = m_senderErrorBox->exec();
-
-                            holding = false;
-                            errors.clear();
-                            if (m_senderErrorBox->checkBox()->isChecked()) m_settings->setIgnoreErrors(true);
-                            if (result == QMessageBox::Ignore) {
-                                m_grbl->connectionRef()->send("~");
-                            } else {
-                                grblReset();
-                            }
-                        }
-                    }
-
-                    // Check transfer complete (last row always blank, last command row = rowcount - 2)
-                    if ((m_grbl->fileProcessedCommandIndexRaw() == m_currentModel->rowCount() - 2) ||
-                        uncomment.contains(QRegExp("(M0*2|M30)(?!\\d)")))
-                    {
-                        if (m_grbl->deviceStateRaw() == DeviceRun) {
-                            setSenderState(SenderStopping);
-                        } else {
-                            completeTransfer();
-                        }
-                    } else if ((m_grbl->fileCommandIndexRaw() < m_currentModel->rowCount())
-                        && (m_grbl->senderStateRaw() == SenderTransferring)
-                        && !holding)
-                    {
-                        // Send next program commands
-                        sendNextFileCommands();
-                    }
-                }
-
-                // Tool change mode
-                static QRegExp M6("(M0*6)(?!\\d)");
-                if ((m_grbl->senderStateRaw() == SenderPausing) && uncomment.contains(M6)) {
-
-                    response.clear();
-
-                    if (m_settings->toolChangePause()) {
-                        QMessageBox::information(this, qApp->applicationDisplayName(),
-                            tr("Change tool and press 'Pause' button to continue job"));
-                    }
-
-                    if (m_settings->toolChangeUseCommands()) {
-                        if (m_settings->toolChangeUseCommandsConfirm()) {
-                            QMessageBox box(this);
-                            box.setIcon(QMessageBox::Information);
-                            box.setText(tr("M6 command detected. Send tool change commands?\n"));
-                            box.setWindowTitle(qApp->applicationDisplayName());
-                            box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-                            box.setCheckBox(new QCheckBox(tr("Don't show again")));
-                            int res = box.exec();
-                            if (box.checkBox()->isChecked()) m_settings->setToolChangeUseCommandsConfirm(false);
-                            if (res == QMessageBox::Yes) {
-                                sendCommands(m_settings->toolChangeCommands());
-                            }
-                        } else {
-                            sendCommands(m_settings->toolChangeCommands());
-                        }
-                    }
-
-                    setSenderState(SenderChangingTool);
-                    updateControlsState();
-                }
-                if ((m_grbl->senderStateRaw() == SenderChangingTool) && !m_settings->toolChangePause()
-                    && m_grbl->commands().isEmpty())
-                {
-                    setSenderState(SenderTransferring);
-                }
-
-                // Switch to pause mode
-                if ((m_grbl->senderStateRaw() == SenderPausing) && m_grbl->commands().isEmpty()) {
-                    setSenderState(SenderPaused);
-                    updateControlsState();
-                }
-
-                // Scroll to first line on "M30" command
-                if (uncomment.contains("M30")) ui->tblProgram->setCurrentIndex(m_currentModel->index(0, 1));
-
-                // Toolpath shadowing on check mode
-                if (m_grbl->deviceStateRaw() == DeviceCheck) {
-                    GcodeViewParse *parser = m_currentDrawer->viewParser();
-                    QList<LineSegment*> *list = parser->getLineSegments();
-
-                    if ((m_grbl->senderStateRaw() != SenderStopping) && m_grbl->fileProcessedCommandIndexRaw() < m_currentModel->rowCount() - 1)
-                    {
-                        int i;
-                        QList<int> drawnLines;
-
-                        for (i = m_lastDrawnLineIndex; i < list->count()
-                                && list->at(i)->getLineNumber() <= (m_currentModel->data().at(m_grbl->fileProcessedCommandIndexRaw()).line); i++)
-                        {
-                            drawnLines << i;
-                        }
-
-                        if (!drawnLines.isEmpty() && (i < list->count())) {
-                            m_lastDrawnLineIndex = i;
-                            QVector3D vec = list->at(i)->getEnd();
-                            m_toolDrawer->setToolPosition(vec);
-                        }
-
-                        foreach (int i, drawnLines) {
-                            list->at(i)->setIsDrawn(true);
-                        }
-                        if (!drawnLines.isEmpty()) m_currentDrawer->update(drawnLines);
-                    } else {
-                        foreach (LineSegment* s, *list) {
-                            if (!qIsNaN(s->getEnd().length())) {
-                                m_toolDrawer->setToolPosition(s->getEnd());
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Emit response signal
-                emit responseReceived(ca.command, ca.tableIndex, response);
-
-                response.clear();
-            } else {
-                response.append(data + "; ");
-            }
-
-        } else {
-            // Unprocessed responses
-            // Handle hardware reset
-            if (GrblController::dataIsReset(data)) {
-                setSenderState(SenderStopped);
-                setDeviceState(DeviceUnknown);
-
-                m_grbl->fileCommandIndexRaw() = 0;
-
-                m_grbl->reseting() = false;
-                m_grbl->homing() = false;
-
-                m_grbl->updateParserStatusFlag() = true;
-                m_grbl->statusReceivedFlag() = true;
-
-                m_grbl->commands().clear();
-                m_grbl->queue().clear();
-
-                updateControlsState();
-            }
-            ui->txtConsole->appendPlainText(data);
-        }
-    } else {
-        // Blank response
     }
+    else if (m_grbl->sdRun())
+    {
+        m_grbl->sdRun() = false;
+        updateControlsState();
+
+        qApp->beep();
+        QMessageBox::information(this, qApp->applicationDisplayName(), tr("Sending file from SD card completed"));
+    }
+
+    // Toolpath shadowing
+    static QList<SenderState> shadowingSenderStates { SenderTransferring, SenderStopping, SenderPausing, SenderPaused };
+    if ((shadowingSenderStates.contains(m_grbl->senderStateRaw()) && state != DeviceCheck)) {
+        GcodeViewParse *parser = m_currentDrawer->viewParser();
+
+        bool toolOnToolpath = false;
+
+        QList<int> drawnLines;
+        QList<LineSegment*> *list = parser->getLineSegments();
+
+        for (int i = m_lastDrawnLineIndex; i < list->count()
+            && list->at(i)->getLineNumber() <= (m_currentModel->data().at(m_grbl->fileProcessedCommandIndexRaw()).line + 1); i++)
+        {
+            if (list->at(i)->contains(m_codeDrawer->rotation().transposed() * toolPosition))
+            {
+                toolOnToolpath = true;
+                m_lastDrawnLineIndex = i;
+                break;
+            }
+            drawnLines << i;
+        }
+
+        if (toolOnToolpath) {
+            foreach (int i, drawnLines) {
+                list->at(i)->setIsDrawn(true);
+            }
+            if (!drawnLines.isEmpty()) {
+                m_currentDrawer->update(drawnLines);
+            }
+        }
+        else if (m_lastDrawnLineIndex < list->count() && m_lastDrawnLineIndex > 0)
+        {
+            qWarning(generalLogCategory)
+            << QString("Tool not on toolpath. Last drawn line index: %1, model line: %2, processed index: %3")
+                .arg(list->at(m_lastDrawnLineIndex)->getLineNumber())
+                .arg(m_currentModel->data().at(m_grbl->fileProcessedCommandIndexRaw()).line)
+                .arg(m_grbl->fileProcessedCommandIndexRaw());
+        }
+    }
+
+    // Get overridings
+    if (report.hasOverrides)
+    {
+        updateOverride(ui->slbFeedOverride, report.feedOverride, '\x91');
+        updateOverride(ui->slbSpindleOverride, report.spindleOverride, '\x9a');
+
+        int rapid = report.rapidOverride;
+        ui->slbRapidOverride->setCurrentValue(rapid);
+
+        int target = ui->slbRapidOverride->isChecked() ? ui->slbRapidOverride->value() : 100;
+
+        if (rapid != target) switch (target) {
+        case 25:
+            m_grbl->connectionRef()->send("\x97");
+            break;
+        case 50:
+            m_grbl->connectionRef()->send("\x96");
+            break;
+        case 100:
+            m_grbl->connectionRef()->send("\0x95");
+            break;
+        }
+
+        // Update pins state
+        QString pinState;
+        if (!report.pinState.isEmpty()) {
+            pinState.append(QString(tr("PS: %1")).arg(report.pinState));
+        }
+
+        // Process spindle state
+        if (!report.accessoryState.isEmpty()) {
+            ui->cmdFlood->setChecked(report.accessoryState.contains("F"));
+
+            if (!pinState.isEmpty()) pinState.append(" / ");
+            pinState.append(QString(tr("AS: %1")).arg(report.accessoryState));
+        }
+        ui->glwVisualizer->setPinState(pinState);
+    }
+
+    // Get feed/spindle values
+    if (report.hasFeedSpeed) {
+        auto spindleSpeed = report.spindleSpeedText;
+        if (spindleSpeed != "0") {
+            if ((!m_timerToolAnimation.isActive())) {
+                m_timerToolAnimation.start(25, this);
+                ui->cmdSpindle->setChecked(true);
+            }
+            ui->slbSpindle->setCurrentValue(spindleSpeed.toDouble());
+        } else if (m_timerToolAnimation.isActive()) {
+            m_timerToolAnimation.stop();
+            ui->cmdSpindle->setChecked(false);
+        }
+        ui->glwVisualizer->setSpeedState((QString(tr("F/S: %1 / %2")).arg(report.feedText).arg(spindleSpeed)));
+    }
+
+    // Update continuous jog
+    jogContinuous();
+
+    // Update buffer state label (was updated on every state-query timer
+    // tick; updating on every status response lands at essentially the
+    // same cadence).
+    ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3"))
+        .arg(m_grbl->bufferLength()).arg(m_grbl->commands().length()).arg(m_grbl->queue().length()));
+
+    // Emit status signal (legacy, relayed to ScriptDevice)
+    emit statusReceived(report.raw);
 }
 
-void frmMain::onConnectionErrorOccurred(QString error)
+void frmMain::onGrblCommandSent(QString command, int tableIndex, bool showInConsole)
 {
-    static QString previousError;
+    Q_UNUSED(tableIndex)
 
-    if (error != previousError) {
-        previousError = error;
-        ui->txtConsole->appendPlainText(tr("Connection error ") + error);
-        if (m_grbl->connectionRef()->isConnected()) {
-            m_grbl->connectionRef()->disconnect();
-        }
+    if (showInConsole) {
+        ui->txtConsole->appendPlainText(command);
+        m_consoleIndexQueue.enqueue(ui->txtConsole->blockCount() - 1);
+    } else {
+        m_consoleIndexQueue.enqueue(-1);
     }
 }
 
-void frmMain::onConnectionConnected()
+void frmMain::onGrblProgramCommandSent(int tableIndex)
+{
+    m_currentModel->setData(m_currentModel->index(tableIndex, 2), GCodeItem::Sent);
+}
+
+void frmMain::onGrblCommandResponded(QString command, int tableIndex, QString response)
+{
+    QString uncomment = GcodePreprocessorUtils::removeComment(command).toUpper();
+
+    // TODO: remove/rework
+    // Store current coordinate system
+    if (uncomment == "$G") {
+        static QRegExp g("G5[4-9]");
+        if (g.indexIn(response) != -1) {
+            m_storedVars.setCS(g.cap(0));
+        }
+        static QRegExp t("T(\\d+)(?!\\d)");
+        if (t.indexIn(response) != -1) {
+            m_storedVars.setTool(g.cap(1).toInt());
+        }
+    }
+
+    // Process parser status
+    if (uncomment == "$G" && tableIndex == -3) {
+        // Update status in visualizer window
+        ui->glwVisualizer->setParserStatus(response.left(response.indexOf("; ")));
+
+        // Store parser status
+        if ((m_grbl->senderStateRaw() == SenderTransferring) || (m_grbl->senderStateRaw() == SenderStopping)) storeParserState();
+
+        // Spindle speed
+        QRegExp rx(".*S([\\d\\.]+)");
+        if (rx.indexIn(response) != -1) {
+            double speed = rx.cap(1).toDouble();
+            ui->slbSpindle->setCurrentValue(speed);
+        }
+    }
+
+    // Offsets
+    if (uncomment == "$#") storeOffsetsVars(response);
+
+    // Update probe coords on user commands
+    if (uncomment.contains("G38.2") && tableIndex < 0) {
+        static QRegExp PRB(".*PRB:([^,]*),([^,]*),([^,:]*)(?:,([^,:]*))*");
+        if (PRB.indexIn(response) != -1) {
+            m_scriptApp->device()->setProbeCoordinates(PRB.cap(1).toDouble(), PRB.cap(2).toDouble(),
+                PRB.cap(3).toDouble(), PRB.cap(4).toDouble());
+
+            // TODO: remove
+            m_storedVars.setCoords("PRB", QVector3D(
+                PRB.cap(1).toDouble(),
+                PRB.cap(2).toDouble(),
+                PRB.cap(3).toDouble()
+            ));
+        }
+    }
+
+    // Process probing on heightmap mode only from table commands
+    if (uncomment.contains("G38.2") && m_heightMapMode && tableIndex > -1) {
+        // Get probe Z coordinate
+        // "[PRB:0.000,0.000,0.000:0];ok"
+        // "[PRB:0.000,0.000,0.000,0.000:0];ok"
+        QRegExp rx(".*PRB:([^,]*),([^,]*),([^,:]*)");
+        double z = qQNaN();
+        if (rx.indexIn(response) != -1) {
+            z = toMetric(rx.cap(3).toDouble());
+        }
+
+        static double firstZ;
+        if (m_grbl->probeIndexRaw() == -1) {
+            firstZ = z;
+            z = 0;
+        } else {
+            // Calculate delta Z
+            z -= firstZ;
+
+            // Calculate table indexes
+            int row = (m_grbl->probeIndexRaw() / m_heightMapModel.columnCount());
+            int column = m_grbl->probeIndexRaw() - row * m_heightMapModel.columnCount();
+            if (row % 2) column = m_heightMapModel.columnCount() - 1 - column;
+
+            // Store Z in table
+            m_heightMapModel.setData(m_heightMapModel.index(row, column), z, Qt::UserRole);
+            ui->tblHeightMap->update(m_heightMapModel.index(m_heightMapModel.rowCount() - 1 - row, column));
+            updateHeightMapInterpolationDrawer();
+        }
+
+        m_grbl->probeIndexRaw()++;
+    }
+
+    // Add response to console
+    {
+        int consoleIndex = m_consoleIndexQueue.isEmpty() ? -1 : m_consoleIndexQueue.dequeue();
+        QTextBlock tb = ui->txtConsole->document()->findBlockByNumber(consoleIndex);
+        QTextCursor tc(tb);
+
+        if (tb.isValid() && tb.text() == command) {
+
+            bool scrolledDown = ui->txtConsole->verticalScrollBar()->value()
+                == ui->txtConsole->verticalScrollBar()->maximum();
+
+            // Update text block numbers
+            int blocksAdded = response.count("; ");
+
+            if (blocksAdded > 0) {
+                for (int i = 0; i < m_consoleIndexQueue.count(); i++) {
+                    if (m_consoleIndexQueue[i] != -1) m_consoleIndexQueue[i] += blocksAdded;
+                }
+            }
+
+            tc.beginEditBlock();
+            tc.movePosition(QTextCursor::EndOfBlock);
+
+            tc.insertText(" < " + QString(response).replace("; ", "\r\n"));
+            tc.endEditBlock();
+
+            if (scrolledDown) ui->txtConsole->verticalScrollBar()->setValue(
+                ui->txtConsole->verticalScrollBar()->maximum());
+        }
+    }
+
+    // Add response to table, update taskbar
+    if (m_grbl->senderStateRaw() != SenderStopped) {
+        // Only if command from table
+        if (tableIndex > -1) {
+            m_currentModel->setData(m_currentModel->index(tableIndex, 2), GCodeItem::Processed);
+            m_currentModel->setData(m_currentModel->index(tableIndex, 3), response);
+
+            if (ui->chkAutoScroll->isChecked() && tableIndex != -1) {
+                scrollToTableIndex(m_currentModel->index(tableIndex + 1, 0));
+            }
+        }
+
+#ifdef Q_OS_WIN
+        if (QSysInfo::windowsVersion() >= QSysInfo::WV_WINDOWS7) {
+            if (m_taskBarProgress) m_taskBarProgress->setValue(m_grbl->fileProcessedCommandIndexRaw());
+        }
+#endif
+    }
+
+    // Scroll to first line on "M30" command
+    if (uncomment.contains("M30")) ui->tblProgram->setCurrentIndex(m_currentModel->index(0, 1));
+
+    // Toolpath shadowing on check mode
+    if (m_grbl->deviceStateRaw() == DeviceCheck) {
+        GcodeViewParse *parser = m_currentDrawer->viewParser();
+        QList<LineSegment*> *list = parser->getLineSegments();
+
+        if ((m_grbl->senderStateRaw() != SenderStopping) && m_grbl->fileProcessedCommandIndexRaw() < m_currentModel->rowCount() - 1)
+        {
+            int i;
+            QList<int> drawnLines;
+
+            for (i = m_lastDrawnLineIndex; i < list->count()
+                    && list->at(i)->getLineNumber() <= (m_currentModel->data().at(m_grbl->fileProcessedCommandIndexRaw()).line); i++)
+            {
+                drawnLines << i;
+            }
+
+            if (!drawnLines.isEmpty() && (i < list->count())) {
+                m_lastDrawnLineIndex = i;
+                QVector3D vec = list->at(i)->getEnd();
+                m_toolDrawer->setToolPosition(vec);
+            }
+
+            foreach (int i, drawnLines) {
+                list->at(i)->setIsDrawn(true);
+            }
+            if (!drawnLines.isEmpty()) m_currentDrawer->update(drawnLines);
+        } else {
+            foreach (LineSegment* s, *list) {
+                if (!qIsNaN(s->getEnd().length())) {
+                    m_toolDrawer->setToolPosition(s->getEnd());
+                    break;
+                }
+            }
+        }
+    }
+
+    updateControlsState();
+}
+
+void frmMain::onGrblTransferCompleted()
+{
+    // Shadow last segment
+    GcodeViewParse *parser = m_currentDrawer->viewParser();
+    QList<LineSegment*> *list = parser->getLineSegments();
+    if (m_lastDrawnLineIndex < list->count()) {
+        list->at(m_lastDrawnLineIndex)->setIsDrawn(true);
+        m_currentDrawer->update(QList<int>() << m_lastDrawnLineIndex);
+    }
+
+    m_lastDrawnLineIndex = 0;
+
+    updateControlsState();
+
+    // Send end commands
+    if (m_settings->useEndCommands()) sendCommands(m_settings->endCommands());
+
+    // Show message box
+    qApp->beep();
+
+    QMessageBox::information(this, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1")
+                                .arg(ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
+}
+
+void frmMain::onGrblToolChangeRequested()
+{
+    if (m_settings->toolChangePause()) {
+        QMessageBox::information(this, qApp->applicationDisplayName(),
+            tr("Change tool and press 'Pause' button to continue job"));
+    }
+
+    if (m_settings->toolChangeUseCommands()) {
+        if (m_settings->toolChangeUseCommandsConfirm()) {
+            QMessageBox box(this);
+            box.setIcon(QMessageBox::Information);
+            box.setText(tr("M6 command detected. Send tool change commands?\n"));
+            box.setWindowTitle(qApp->applicationDisplayName());
+            box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+            box.setCheckBox(new QCheckBox(tr("Don't show again")));
+            int res = box.exec();
+            if (box.checkBox()->isChecked()) m_settings->setToolChangeUseCommandsConfirm(false);
+            if (res == QMessageBox::Yes) {
+                sendCommands(m_settings->toolChangeCommands());
+            }
+        } else {
+            sendCommands(m_settings->toolChangeCommands());
+        }
+    }
+
+    updateControlsState();
+}
+
+void frmMain::onGrblSettingsResponseReceived(QMap<int, float> values)
+{
+    applyGrblSettings(values);
+    setupCoordsTextboxes();
+}
+
+void frmMain::onGrblConnectionOpened()
 {
     ui->txtStatus->setText(tr("Port opened"));
     ui->txtStatus->setStyleSheet(QString("background-color: palette(button); color: palette(text);"));
 
     updateControlsState();
-
-    QTimer::singleShot(1000, [this]()
-    {
-        if (m_settings->resetOnConnection())
-        {
-            grblReset();
-        }
-        else
-        {
-            m_grbl->sdRun() = false;
-            m_grbl->fileCommandIndexRaw() = 0;
-            m_grbl->commands().clear();
-            m_grbl->queue().clear();
-
-            m_grbl->reseting() = false;
-            m_grbl->resetCompleted() = true;
-            m_grbl->homing() = false;
-            m_grbl->updateSpindleSpeedFlag() = false;
-            m_grbl->updateParserStatusFlag() = true;
-            m_grbl->statusReceivedFlag() = true;
-
-            setSenderState(SenderStopped);
-            setDeviceState(DeviceUnknown);
-
-            // Query grbl settings
-            sendCommand("$$", -2, false);
-            sendCommand("$#", -2, false, true);
-        }
-    });
 }
 
-void frmMain::onConnectionDisconnected()
+void frmMain::onGrblConnectionClosed()
 {
     updateControlsState();
 }
 
-void frmMain::onTimerConnection()
+void frmMain::onGrblConnectionErrorOccurred(QString error)
 {
-    if (m_grbl->connectionRef() && !m_grbl->connectionRef()->isConnected())
-    {
-        m_grbl->connectionRef()->connect();
-    }
-    else if (!m_grbl->homing()/* && !m_grbl->reseting()*/ && !ui->cmdHold->isChecked() && m_grbl->queue().length() == 0)
-    {
-        if (m_grbl->updateSpindleSpeedFlag()) {
-            m_grbl->updateSpindleSpeedFlag() = false;
-            sendCommand(QString("S%1").arg(ui->slbSpindle->value()), -2, m_settings->showUICommands());
-        }
-        if (m_grbl->updateParserStatusFlag()) {
-            m_grbl->updateParserStatusFlag() = false;
-            sendCommand("$G", -3, false);
-        }
-    }
+    ui->txtConsole->appendPlainText(tr("Connection error ") + error);
 }
 
-void frmMain::onTimerStateQuery()
+void frmMain::onGrblUnprocessedDataReceived(QString data)
 {
-    if (m_grbl->connectionRef()->isConnected() && m_grbl->resetCompleted() && m_grbl->statusReceivedFlag()) {
-        m_grbl->connectionRef()->send("?");
-        m_grbl->statusReceivedFlag() = false;
-    }
+    ui->txtConsole->appendPlainText(data);
+}
 
-    ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3")).arg(m_grbl->bufferLength()).arg(m_grbl->commands().length()).arg(m_grbl->queue().length()));
+void frmMain::onGrblHardwareResetDetected()
+{
+    updateControlsState();
+}
+
+void frmMain::onGrblSpindleSpeedUpdateRequested()
+{
+    sendCommand(QString("S%1").arg(ui->slbSpindle->value()), -2, m_settings->showUICommands());
+}
+
+void frmMain::onGrblErrorTextUpdated(QString accumulatedText)
+{
+    if (m_senderErrorBox->isVisible()) {
+        m_senderErrorBox->setText(tr("Error message(s) received:\n") + accumulatedText);
+    }
 }
 
 void frmMain::onTableInsertLine()
@@ -4201,7 +3977,7 @@ void frmMain::applySettings()
                     m_grbl->connectionRef()->disconnect();
                     delete m_grbl->connectionRef();
                 }
-                m_grbl->connectionRef() = new SerialPortConnection(m_settings->port(), m_settings->baud());
+                m_grbl->setConnection(new SerialPortConnection(m_settings->port(), m_settings->baud()));
                 newConnectionCreated = true;
             }
         }
@@ -4227,7 +4003,7 @@ void frmMain::applySettings()
                     m_grbl->connectionRef()->disconnect();
                     delete m_grbl->connectionRef();
                 }
-                m_grbl->connectionRef() = new TelnetConnection(m_settings->telnetAddress(), m_settings->telnetPort());
+                m_grbl->setConnection(new TelnetConnection(m_settings->telnetAddress(), m_settings->telnetPort()));
                 newConnectionCreated = true;
             }
         }
@@ -4253,21 +4029,13 @@ void frmMain::applySettings()
                     m_grbl->connectionRef()->disconnect();
                     delete m_grbl->connectionRef();
                 }
-                m_grbl->connectionRef() = new WebSocketConnection(m_settings->webSocketUrl(),
-                    m_settings->webSocketBinaryMode());
+                m_grbl->setConnection(new WebSocketConnection(m_settings->webSocketUrl(),
+                    m_settings->webSocketBinaryMode()));
                 newConnectionCreated = true;
             }
         }
         break;
     };
-
-    // Setup signals/slots if new connection created
-    if (newConnectionCreated) {
-        connect(m_grbl->connectionRef(), &Connection::dataReceived, this, &frmMain::onConnectionDataReceived);
-        connect(m_grbl->connectionRef(), &Connection::errorOccurred, this, &frmMain::onConnectionErrorOccurred);
-        connect(m_grbl->connectionRef(), &Connection::connected, this, &frmMain::onConnectionConnected);
-        connect(m_grbl->connectionRef(), &Connection::disconnected, this, &frmMain::onConnectionDisconnected);
-    }
 
     // Open connection if settings changed or new connection created
     if (connectionSettingsChanged || newConnectionCreated) {
@@ -4451,137 +4219,28 @@ void frmMain::loadPlugins()
     }
 }
 
+// Thin forwarders: the real implementations moved to GrblController. Kept
+// so the ~150 existing call sites throughout this file don't need to
+// change in this commit — deleted once those are repointed at m_grbl->...
+// directly (Commit 5).
 void frmMain::grblReset()
 {
-    m_grbl->connectionRef()->send("\x18");
-
-    setSenderState(SenderStopped);
-    setDeviceState(DeviceUnknown);
-    m_grbl->sdRun() = false;
-    m_grbl->fileCommandIndexRaw() = 0;
-
-    m_grbl->reseting() = true;
-    m_grbl->homing() = false;
-    m_grbl->resetCompleted() = false;
-    m_grbl->updateSpindleSpeedFlag() = true;
-    m_grbl->statusReceivedFlag() = true;
-
-    // Drop all remaining commands in buffer
-    m_grbl->commands().clear();
-    m_grbl->queue().clear();
-
-    // Prepare reset response catch
-    CommandAttributes ca;
-    ca.command = "[CTRL+X]";
-    if (m_settings->showUICommands()) ui->txtConsole->appendPlainText(ca.command);
-    ca.consoleIndex = m_settings->showUICommands() ? ui->txtConsole->blockCount() - 1 : -1;
-    ca.tableIndex = -1;
-    ca.length = ca.command.length() + 1;
-    m_grbl->commands().append(ca);
-
-    updateControlsState();
+    m_grbl->grblReset();
 }
 
 SendCommandResult frmMain::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait)
 {
-    // tableIndex:
-    // 0...n - commands from g-code program
-    // -1 - ui commands
-    // -2 - utility commands
-    // -3 - utility commands
-
-    if (!m_grbl->connectionRef() || !m_grbl->connectionRef()->isConnected() || !m_grbl->resetCompleted())
-        return SendDone;
-
-    // Check command
-    if (command.isEmpty()) return SendEmpty;
-
-    // Place to queue on 'wait' flag
-    if (wait) {
-        m_grbl->queue().append(CommandQueue(command, tableIndex, showInConsole));
-        return SendQueue;
-    }
-
-    // Evaluate scripts in command
-    if (tableIndex < 0) command = m_grbl->evaluateCommand(command);
-
-    // Check evaluated command
-    if (command.isEmpty()) return SendEmpty;
-
-    // Place to queue if command buffer is full
-    if ((m_grbl->bufferLength() + command.length() + 1) > GrblController::BUFFERLENGTH) {
-        m_grbl->queue().append(CommandQueue(command, tableIndex, showInConsole));
-        return SendQueue;
-    }
-
-    CommandAttributes ca;
-    if (showInConsole) {
-        ui->txtConsole->appendPlainText(command);
-        ca.consoleIndex = ui->txtConsole->blockCount() - 1;
-    } else {
-        ca.consoleIndex = -1;
-    }
-
-    ca.command = command;
-    ca.length = command.length() + 1;
-    ca.tableIndex = tableIndex;
-
-    m_grbl->commands().append(ca);
-
-    QString uncomment = GcodePreprocessorUtils::removeComment(command).toUpper();
-
-    // Processing spindle speed only from g-code program
-    static QRegExp s("[Ss]0*(\\d+)");
-    if (s.indexIn(uncomment) != -1 && ca.tableIndex > -2) {
-        int speed = s.cap(1).toInt();
-        if (ui->slbSpindle->value() != speed) {
-            ui->slbSpindle->setValue(speed);
-        }
-    }
-
-    // Set M2 & M30 commands sent flag
-    static QRegExp M230("(M0*2|M30|M0*6|M25)(?!\\d)");
-    static QRegExp M6("(M0*6)(?!\\d)");
-    if ((m_grbl->senderStateRaw() == SenderTransferring) && uncomment.contains(M230)) {
-        if (!uncomment.contains(M6) || m_settings->toolChangeUseCommands() || m_settings->toolChangePause()) setSenderState(SenderPausing);
-    }
-
-    // Queue offsets request on G92, G10 commands
-    static QRegExp G92("(G92|G10)(?!\\d)");
-    if (uncomment.contains(G92)) sendCommand("$#", -3, showInConsole, true);
-
-    m_grbl->connectionRef()->send(command);
-
-    return SendDone;
+    return m_grbl->sendCommand(command, tableIndex, showInConsole, wait);
 }
 
 void frmMain::sendCommands(QString commands, int tableIndex)
 {
-    QStringList list = commands.split("\n");
-
-    bool q = m_grbl->queue().size();
-    foreach (QString cmd, list) {
-        SendCommandResult r = sendCommand(cmd.trimmed(), tableIndex, m_settings->showUICommands(), q);
-        if (r == SendDone || r == SendQueue) q = true;
-    }
+    m_grbl->sendCommands(commands, tableIndex);
 }
 
-void frmMain::sendNextFileCommands() {
-    if (m_grbl->queue().length() > 0) return;
-
-    auto command = m_currentModel->data().at(m_grbl->fileCommandIndexRaw()).command;
-    static QRegExp M230("(M0*2|M30|M0*6)(?!\\d)");
-
-    while ((m_grbl->bufferLength() + command.length() + 1) <= GrblController::BUFFERLENGTH
-        && m_grbl->fileCommandIndexRaw() < m_currentModel->rowCount() - 1
-        && !(!m_grbl->commands().isEmpty() && GcodePreprocessorUtils::removeComment(m_grbl->commands().last().command).contains(M230))
-        )
-    {
-        m_currentModel->setData(m_currentModel->index(m_grbl->fileCommandIndexRaw(), 2), GCodeItem::Sent);
-        sendCommand(command, m_grbl->fileCommandIndexRaw(), m_settings->showProgramCommands());
-        m_grbl->fileCommandIndexRaw()++;
-        command = m_currentModel->data().at(m_grbl->fileCommandIndexRaw()).command;
-    }
+void frmMain::sendNextFileCommands()
+{
+    m_grbl->sendNextFileCommands();
 }
 
 void frmMain::updateParser()
@@ -4746,25 +4405,10 @@ void frmMain::storeParserState()
                 QRegExp("GC:|\\[|\\]|G[01234]\\s|M[0345]+\\s|\\sF[\\d\\.]+|\\sS[\\d\\.]+"));
 }
 
+// Forwarder — see the note above grblReset().
 void frmMain::restoreParserState()
 {
-    if (!m_grbl->storedParserStatusRaw().isEmpty()) sendCommand(m_grbl->storedParserStatusRaw(), -1, m_settings->showUICommands());
-}
-
-void frmMain::restoreOffsets()
-{
-    // Still have pre-reset working position
-    sendCommand(QString("%4G53G90X%1Y%2Z%3").arg(ui->txtMPosX->value())
-                                       .arg(ui->txtMPosY->value())
-                                       .arg(ui->txtMPosZ->value())
-                                       .arg(m_settings->units() ? "G20" : "G21"),
-                                       -2, m_settings->showUICommands());
-
-    sendCommand(QString("%4G92X%1Y%2Z%3").arg(ui->txtWPosX->value())
-                                       .arg(ui->txtWPosY->value())
-                                       .arg(ui->txtWPosZ->value())
-                                       .arg(m_settings->units() ? "G20" : "G21"),
-                                       -2, m_settings->showUICommands());
+    m_grbl->restoreParserState();
 }
 
 void frmMain::storeOffsetsVars(QString response)
@@ -5896,11 +5540,6 @@ double frmMain::toInches(double value)
     return m_settings->units() == 0 ? value : value / 25.4;
 }
 
-bool frmMain::compareCoordinates(double x, double y, double z)
-{
-    return ui->txtMPosX->value() == x && ui->txtMPosY->value() == y && ui->txtMPosZ->value() == z;
-}
-
 bool frmMain::isGCodeFile(QString fileName)
 {
     return fileName.endsWith(".txt", Qt::CaseInsensitive)
@@ -5921,54 +5560,10 @@ int frmMain::buttonSize()
     return ui->cmdHome->minimumWidth();
 }
 
+// Forwarder — see the note above grblReset().
 void frmMain::setSenderState(SenderState state)
 {
-    if (m_grbl->senderStateRaw() != state) {
-        m_grbl->senderStateRaw() = state;
-        emit senderStateChanged(state);
-    }
-}
-
-void frmMain::setDeviceState(DeviceState state)
-{
-    if (m_grbl->deviceStateRaw() != state) {
-        m_grbl->deviceStateRaw() = state;
-        emit deviceStateChanged(state);
-    }
-}
-
-void frmMain::completeTransfer()
-{
-    // Shadow last segment
-    GcodeViewParse *parser = m_currentDrawer->viewParser();
-    QList<LineSegment*> *list = parser->getLineSegments();
-    if (m_lastDrawnLineIndex < list->count()) {
-        list->at(m_lastDrawnLineIndex)->setIsDrawn(true);
-        m_currentDrawer->update(QList<int>() << m_lastDrawnLineIndex);
-    }
-
-    // Update state
-    setSenderState(SenderStopped);
-    m_grbl->fileProcessedCommandIndexRaw() = 0;
-    m_lastDrawnLineIndex = 0;
-    m_grbl->storedParserStatusRaw().clear();
-
-    updateControlsState();
-
-    // Send end commands
-    if (m_settings->useEndCommands()) sendCommands(m_settings->endCommands());
-
-    // Show message box
-    qApp->beep();
-    m_grbl->timerStateQuery().stop();
-    m_grbl->timerConnection().stop();
-
-    QMessageBox::information(this, qApp->applicationDisplayName(), tr("Job done.\nTime elapsed: %1")
-                                .arg(ui->glwVisualizer->spendTime().toString("hh:mm:ss")));
-
-    m_grbl->timerStateQuery().setInterval(m_settings->queryStateTime());
-    m_grbl->timerConnection().start();
-    m_grbl->timerStateQuery().start();
+    m_grbl->setSenderState(state);
 }
 
 QString frmMain::getLineInitCommands(int row)
@@ -6046,16 +5641,11 @@ QString frmMain::getLineInitCommands(int row)
     return commands;
 }
 
-void frmMain::processSettingsResponse(QString response)
+// The '$$' response's regex -> QMap<int,float> parsing half now lives in
+// GrblController::processSettingsResponse(); this is the UI-apply half,
+// invoked from onGrblSettingsResponseReceived().
+void frmMain::applyGrblSettings(QMap<int, float> set)
 {
-    static QRegExp gs("\\$(\\d+)\\=([^;]+)\\; ");
-    QMap<int, float> set;
-    int p = 0;
-
-    while ((p = gs.indexIn(response, p)) != -1) {
-        set[gs.cap(1).toInt()] = gs.cap(2).toFloat();
-        p += gs.matchedLength();
-    }
     if (set.keys().contains(13)) m_settings->setUnits(set[13]);
     if (set.keys().contains(20)) m_settings->setSoftLimitsEnabled(set[20]);
     if (set.keys().contains(22)) {

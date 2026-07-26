@@ -61,6 +61,9 @@
 #include "tablehistorymanager/tablehistorymanager.h"
 
 #include "grbl/grblcontroller.h"
+#include "grbl/grblstatusreport.h"
+
+#include <QQueue>
 
 namespace Ui {
 class frmMain;
@@ -216,12 +219,25 @@ private slots:
     void on_dockVisualizer_visibilityChanged(bool visible);
     void on_sliProgram_valueChanged(int value);
 
-    void onConnectionDataReceived(QString data);
-    void onConnectionErrorOccurred(QString error);
-    void onConnectionConnected();
-    void onConnectionDisconnected();
-    void onTimerConnection();
-    void onTimerStateQuery();
+    // GRBL controller reactions (see grbl/grblcontroller.h) — this is the
+    // UI layer's half of what used to be onConnectionDataReceived() and
+    // friends: rendering into widgets/drawers/models from data the
+    // controller already parsed/decided.
+    void onGrblStatusUpdated(const GrblStatusReport &report);
+    void onGrblCommandResponded(QString command, int tableIndex, QString response);
+    void onGrblCommandSent(QString command, int tableIndex, bool showInConsole);
+    void onGrblProgramCommandSent(int tableIndex);
+    void onGrblTransferCompleted();
+    void onGrblToolChangeRequested();
+    void onGrblSettingsResponseReceived(QMap<int, float> values);
+    void onGrblConnectionOpened();
+    void onGrblConnectionClosed();
+    void onGrblConnectionErrorOccurred(QString error);
+    void onGrblUnprocessedDataReceived(QString data);
+    void onGrblHardwareResetDetected();
+    void onGrblSpindleSpeedUpdateRequested();
+    void onGrblErrorTextUpdated(QString accumulatedText);
+
     void onTableInsertLine();
     void onTableDeleteLines();
     void onTableCutLines();
@@ -266,7 +282,6 @@ private:
     // Ui
     Ui::frmMain *ui;
 
-    QMap<DeviceState, QString> m_deviceStatuses;
     QMap<DeviceState, QString> m_statusCaptions;
     QMap<DeviceState, QString> m_statusBackColors;
     QMap<DeviceState, QString> m_statusForeColors;
@@ -351,6 +366,12 @@ private:
     // TODO: remove
     ScriptVars m_storedVars;
 
+    // Console-echo bookkeeping: parallel FIFO of "which console block does
+    // the Nth in-flight command's response belong to" (-1 = not echoed),
+    // kept in the same order commands are sent/completed on GrblController.
+    // Replaces the consoleIndex field CommandAttributes used to carry.
+    QQueue<int> m_consoleIndexQueue;
+
     // Drag & drop
     QPoint m_mousePressPos;
     
@@ -395,7 +416,6 @@ private:
     void ensureParserUpdateNotRunning();
     void storeParserState();
     void restoreParserState();
-    void restoreOffsets();
     void storeOffsetsVars(QString response);
 
     // Files/models
@@ -438,15 +458,12 @@ private:
     void jogContinuous();
     double toMetric(double value);
     double toInches(double value);
-    bool compareCoordinates(double x, double y, double z);
     bool isGCodeFile(QString fileName);
     bool isHeightmapFile(QString fileName);
     int buttonSize();
     void setSenderState(SenderState state);
-    void setDeviceState(DeviceState state);
-    void completeTransfer();
     QString getLineInitCommands(int row);
-    void processSettingsResponse(QString response);
+    void applyGrblSettings(QMap<int, float> set);
 
     static bool actionLessThan(const QAction *a1, const QAction *a2);
     static bool actionTextLessThan(const QAction *a1, const QAction *a2);

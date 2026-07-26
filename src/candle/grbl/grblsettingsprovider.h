@@ -12,6 +12,7 @@ public:
     virtual ~GrblSettingsProvider() = default;
 
     virtual bool showUICommands() const = 0;
+    virtual bool showProgramCommands() const = 0;
     virtual bool ignoreErrors() const = 0;
     virtual int units() const = 0;
     virtual bool axisAEnabled() const = 0;
