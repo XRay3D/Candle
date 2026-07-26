@@ -388,7 +388,6 @@ private:
     SendCommandResult sendCommand(QString command, int tableIndex = -1, bool showInConsole = true, bool wait = false);
     void sendCommands(QString commands, int tableIndex = -1);
     void sendNextFileCommands();
-    QString evaluateCommand(QString command);
 
     // Parser
     void updateParser();
@@ -432,10 +431,6 @@ private:
     void resetTableSelection();
 
     // Utility
-    int bufferLength();
-    bool dataIsFloating(QString data);
-    bool dataIsEnd(QString data);
-    bool dataIsReset(QString data);
     void updateProgramEstimatedTime(const QList<LineSegment *> &lines);
     void ensureProgramEstimatedTimeUpdateNotRunning();
     QList<LineSegment *> subdivideSegment(LineSegment *segment);

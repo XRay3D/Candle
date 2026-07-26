@@ -1,5 +1,8 @@
 #include "grblcontroller.h"
 
+#include <QRegExp>
+#include <QRegularExpression>
+
 #include "grblsettingsprovider.h"
 
 GrblController::GrblController(GrblSettingsProvider *settings,
@@ -30,4 +33,63 @@ GrblController::GrblController(GrblSettingsProvider *settings,
 
 GrblController::~GrblController()
 {
+}
+
+int GrblController::bufferLength() const
+{
+    int length = 0;
+
+    foreach (CommandAttributes ca, m_commands) {
+        length += ca.length;
+    }
+
+    return length;
+}
+
+QString GrblController::evaluateCommand(QString command)
+{
+    static QRegularExpression rx("\\{(?:(?>[^\\{\\}])|(?0))*\\}");
+    QRegularExpressionMatch m;
+
+    while ((m = rx.match(command)).hasMatch()) {
+        command.replace(m.captured(0), m_scriptEvaluator(m.captured(0)));
+    }
+
+    return command;
+}
+
+bool GrblController::dataIsFloating(const QString &data)
+{
+    QStringList ends;
+
+    ends << "Reset to continue";
+    ends << "'$H'|'$X' to unlock";
+    ends << "ALARM: Soft limit";
+    ends << "ALARM: Hard limit";
+    ends << "Check Door";
+
+    foreach (QString str, ends) {
+        if (data.contains(str)) return true;
+    }
+
+    return false;
+}
+
+bool GrblController::dataIsEnd(const QString &data)
+{
+    QStringList ends;
+
+    ends << "ok";
+    ends << "error";
+
+    foreach (QString str, ends) {
+        if (data.contains(str)) return true;
+    }
+
+    return false;
+}
+
+bool GrblController::dataIsReset(const QString &data)
+{
+    return QRegExp("^GRBL|GCARVIN\\s\\d\\.\\d.").indexIn(data.toUpper()) != -1;
 }

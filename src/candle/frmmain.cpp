@@ -35,21 +35,60 @@
 #include "connections/serialportconnection.h"
 #include "connections/telnetconnection.h"
 #include "connections/websocketconnection.h"
+#include "grbl/grblsettingsprovider.h"
+
+namespace {
+
+// Adapts frmSettings (a QDialog) to the read-only view GrblController needs,
+// keeping the controller free of any dependency on Qt Widgets.
+class FrmSettingsGrblAdapter : public GrblSettingsProvider
+{
+public:
+    explicit FrmSettingsGrblAdapter(frmSettings *settings) : m_settings(settings) {}
+
+    bool showUICommands() const override { return m_settings->showUICommands(); }
+    bool ignoreErrors() const override { return m_settings->ignoreErrors(); }
+    int units() const override { return m_settings->units(); }
+    bool axisAEnabled() const override { return m_settings->axisAEnabled(); }
+    QVector3D machineBounds() const override { return m_settings->machineBounds(); }
+    bool softLimitsEnabled() const override { return m_settings->softLimitsEnabled(); }
+    QMap<int, float> deviceSettings() const override { return m_settings->deviceSettings(); }
+    int queryStateTime() const override { return m_settings->queryStateTime(); }
+    bool resetOnConnection() const override { return m_settings->resetOnConnection(); }
+    bool useStartCommands() const override { return m_settings->useStartCommands(); }
+    QString startCommands() const override { return m_settings->startCommands(); }
+    bool useEndCommands() const override { return m_settings->useEndCommands(); }
+    QString endCommands() const override { return m_settings->endCommands(); }
+    bool toolChangePause() const override { return m_settings->toolChangePause(); }
+    bool toolChangeUseCommands() const override { return m_settings->toolChangeUseCommands(); }
+    QString toolChangeCommands() const override { return m_settings->toolChangeCommands(); }
+
+private:
+    frmSettings *m_settings;
+};
+
+} // namespace
 
 frmMain::frmMain(QWidget *parent) : QMainWindow(parent), ui(new Ui::frmMain)
 {
-    // TODO: wire up a real GrblSettingsProvider + callbacks in a later commit
-    // (settings-provider wiring, then the protocol logic that needs them).
+    // m_settings is constructed a few lines below, before GrblController is
+    // actually asked to read anything from it.
+    m_settings = new frmSettings(this);
+
+    // TODO: wire up the error-decision/keyboard-control callbacks in a later
+    // commit, once the protocol logic that needs them moves in (Commit 4).
     m_grbl = new GrblController(
-        nullptr,
-        [](QString s) { return s; },
+        new FrmSettingsGrblAdapter(m_settings),
+        [this](QString expr) -> QString {
+            QScriptValue v = m_scriptEngine.evaluate(expr);
+            return v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4) : v.toString();
+        },
         [](QString) { return GrblErrorAction::Reset; },
         [] { return false; },
         this);
 
     initVariables();
 
-    m_settings = new frmSettings(this);
     m_about = new frmAbout(this);
     ui->setupUi(this);
 
@@ -1904,7 +1943,7 @@ void frmMain::onConnectionDataReceived(QString data)
 {
     // Filter prereset responses
     if (m_grbl->reseting()) {
-        if (!dataIsReset(data)) return;
+        if (!GrblController::dataIsReset(data)) return;
         else {
             m_grbl->reseting() = false;
             m_grbl->timerStateQuery().setInterval(m_settings->queryStateTime());
@@ -2275,13 +2314,13 @@ void frmMain::onConnectionDataReceived(QString data)
     // Command response
     } else if (data.length() > 0) {
 
-        if (m_grbl->commands().length() > 0 && !dataIsFloating(data)
-                && !(m_grbl->commands()[0].command != "[CTRL+X]" && dataIsReset(data))) {
+        if (m_grbl->commands().length() > 0 && !GrblController::dataIsFloating(data)
+                && !(m_grbl->commands()[0].command != "[CTRL+X]" && GrblController::dataIsReset(data))) {
 
             static QString response; // Full response string
 
-            if ((m_grbl->commands()[0].command != "[CTRL+X]" && dataIsEnd(data))
-                    || (m_grbl->commands()[0].command == "[CTRL+X]" && dataIsReset(data))) {
+            if ((m_grbl->commands()[0].command != "[CTRL+X]" && GrblController::dataIsEnd(data))
+                    || (m_grbl->commands()[0].command == "[CTRL+X]" && GrblController::dataIsReset(data))) {
 
                 response.append(data);
 
@@ -2619,7 +2658,7 @@ void frmMain::onConnectionDataReceived(QString data)
         } else {
             // Unprocessed responses
             // Handle hardware reset
-            if (dataIsReset(data)) {
+            if (GrblController::dataIsReset(data)) {
                 setSenderState(SenderStopped);
                 setDeviceState(DeviceUnknown);
 
@@ -2724,7 +2763,7 @@ void frmMain::onTimerStateQuery()
         m_grbl->statusReceivedFlag() = false;
     }
 
-    ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3")).arg(bufferLength()).arg(m_grbl->commands().length()).arg(m_grbl->queue().length()));
+    ui->glwVisualizer->setBufferState(QString(tr("Buffer: %1 / %2 / %3")).arg(m_grbl->bufferLength()).arg(m_grbl->commands().length()).arg(m_grbl->queue().length()));
 }
 
 void frmMain::onTableInsertLine()
@@ -4464,13 +4503,13 @@ SendCommandResult frmMain::sendCommand(QString command, int tableIndex, bool sho
     }
 
     // Evaluate scripts in command
-    if (tableIndex < 0) command = evaluateCommand(command);
+    if (tableIndex < 0) command = m_grbl->evaluateCommand(command);
 
     // Check evaluated command
     if (command.isEmpty()) return SendEmpty;
 
     // Place to queue if command buffer is full
-    if ((bufferLength() + command.length() + 1) > GrblController::BUFFERLENGTH) {
+    if ((m_grbl->bufferLength() + command.length() + 1) > GrblController::BUFFERLENGTH) {
         m_grbl->queue().append(CommandQueue(command, tableIndex, showInConsole));
         return SendQueue;
     }
@@ -4533,7 +4572,7 @@ void frmMain::sendNextFileCommands() {
     auto command = m_currentModel->data().at(m_grbl->fileCommandIndexRaw()).command;
     static QRegExp M230("(M0*2|M30|M0*6)(?!\\d)");
 
-    while ((bufferLength() + command.length() + 1) <= GrblController::BUFFERLENGTH
+    while ((m_grbl->bufferLength() + command.length() + 1) <= GrblController::BUFFERLENGTH
         && m_grbl->fileCommandIndexRaw() < m_currentModel->rowCount() - 1
         && !(!m_grbl->commands().isEmpty() && GcodePreprocessorUtils::removeComment(m_grbl->commands().last().command).contains(M230))
         )
@@ -4543,23 +4582,6 @@ void frmMain::sendNextFileCommands() {
         m_grbl->fileCommandIndexRaw()++;
         command = m_currentModel->data().at(m_grbl->fileCommandIndexRaw()).command;
     }
-}
-
-QString frmMain::evaluateCommand(QString command)
-{
-    // Evaluate script
-    static QRegularExpression rx("\\{(?:(?>[^\\{\\}])|(?0))*\\}");
-    QRegularExpressionMatch m;
-    QScriptValue v;
-    QString vs;
-
-    while ((m = rx.match(command)).hasMatch()) {
-        v = m_scriptEngine.evaluate(m.captured(0));
-        vs = v.isUndefined() ? "" : v.isNumber() ? QString::number(v.toNumber(), 'f', 4) : v.toString();
-        command.replace(m.captured(0), vs);
-    }
-
-    return command;
 }
 
 void frmMain::updateParser()
@@ -5647,50 +5669,6 @@ void frmMain::resetTableSelection()
     ui->tblProgram->selectionModel()->clearSelection();
     ui->tblProgram->scrollTo(index);
     ui->tblProgram->setCurrentIndex(index);
-}
-
-int frmMain::bufferLength()
-{
-    int length = 0;
-
-    foreach (CommandAttributes ca, m_grbl->commands()) {
-        length += ca.length;
-    }
-
-    return length;
-}
-
-bool frmMain::dataIsFloating(QString data) {
-    QStringList ends;
-
-    ends << "Reset to continue";
-    ends << "'$H'|'$X' to unlock";
-    ends << "ALARM: Soft limit";
-    ends << "ALARM: Hard limit";
-    ends << "Check Door";
-
-    foreach (QString str, ends) {
-        if (data.contains(str)) return true;
-    }
-
-    return false;
-}
-
-bool frmMain::dataIsEnd(QString data) {
-    QStringList ends;
-
-    ends << "ok";
-    ends << "error";
-
-    foreach (QString str, ends) {
-        if (data.contains(str)) return true;
-    }
-
-    return false;
-}
-
-bool frmMain::dataIsReset(QString data) {
-    return QRegExp("^GRBL|GCARVIN\\s\\d\\.\\d.").indexIn(data.toUpper()) != -1;
 }
 
 void frmMain::updateProgramEstimatedTime(const QList<LineSegment*> &lines)

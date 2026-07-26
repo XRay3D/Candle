@@ -85,7 +85,7 @@ Coordinates* ScriptDevice::probeCoordinates()
 
 int ScriptDevice::bufferLength()
 {
-    return m_frmMain->bufferLength();
+    return m_frmMain->m_grbl->bufferLength();
 }
 
 int ScriptDevice::commandsLength()

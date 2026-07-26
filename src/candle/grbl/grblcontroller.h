@@ -102,6 +102,17 @@ public:
                              QObject *parent = nullptr);
     ~GrblController();
 
+    // Sum of the lengths of all commands currently in-flight (sent, not yet
+    // acknowledged) — i.e. how much of GRBL's RX buffer is occupied.
+    int bufferLength() const;
+
+    // Expands '{...}' script macros in a command via the injected evaluator.
+    QString evaluateCommand(QString command);
+
+    static bool dataIsFloating(const QString &data);
+    static bool dataIsEnd(const QString &data);
+    static bool dataIsReset(const QString &data);
+
     // --- Temporary raw storage access -----------------------------------
     // frmMain still owns all the logic that reads/writes this state (queue
     // draining, response parsing, jogging, ...); these accessors just let
