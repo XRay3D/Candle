@@ -4434,7 +4434,7 @@ void frmMain::grblReset()
     updateControlsState();
 }
 
-frmMain::SendCommandResult frmMain::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait)
+SendCommandResult frmMain::sendCommand(QString command, int tableIndex, bool showInConsole, bool wait)
 {
     // tableIndex:
     // 0...n - commands from g-code program
@@ -4461,7 +4461,7 @@ frmMain::SendCommandResult frmMain::sendCommand(QString command, int tableIndex,
     if (command.isEmpty()) return SendEmpty;
 
     // Place to queue if command buffer is full
-    if ((bufferLength() + command.length() + 1) > BUFFERLENGTH) {
+    if ((bufferLength() + command.length() + 1) > GrblController::BUFFERLENGTH) {
         m_queue.append(CommandQueue(command, tableIndex, showInConsole));
         return SendQueue;
     }
@@ -4524,7 +4524,7 @@ void frmMain::sendNextFileCommands() {
     auto command = m_currentModel->data().at(m_fileCommandIndex).command;
     static QRegExp M230("(M0*2|M30|M0*6)(?!\\d)");
 
-    while ((bufferLength() + command.length() + 1) <= BUFFERLENGTH
+    while ((bufferLength() + command.length() + 1) <= GrblController::BUFFERLENGTH
         && m_fileCommandIndex < m_currentModel->rowCount() - 1
         && !(!m_commands.isEmpty() && GcodePreprocessorUtils::removeComment(m_commands.last().command).contains(M230))
         )
