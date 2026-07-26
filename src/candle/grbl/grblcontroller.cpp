@@ -4,7 +4,6 @@
 
 #include <qmath.h>
 
-#include <QRegExp>
 #include <QRegularExpression>
 
 #include "connections/connection.h"
@@ -171,7 +170,8 @@ bool GrblController::dataIsEnd(const QString &data)
 
 bool GrblController::dataIsReset(const QString &data)
 {
-    return QRegExp("^GRBL|GCARVIN\\s\\d\\.\\d.").indexIn(data.toUpper()) != -1;
+    static const QRegularExpression re(R"(^GRBL|GCARVIN\s\d\.\d.)");
+    return re.match(data.toUpper()).hasMatch();
 }
 
 DeviceState GrblController::stateFromString(const QString &name)
@@ -263,14 +263,14 @@ SendCommandResult GrblController::sendCommand(QString command, int tableIndex, b
     QString uncomment = GcodePreprocessorUtils::removeComment(command).toUpper();
 
     // Set M2 & M30 commands sent flag
-    static QRegExp M230("(M0*2|M30|M0*6|M25)(?!\\d)");
-    static QRegExp M6("(M0*6)(?!\\d)");
+    static const QRegularExpression M230(R"((M0*2|M30|M0*6|M25)(?!\d))");
+    static const QRegularExpression M6(R"((M0*6)(?!\d))");
     if ((m_senderState == SenderTransferring) && uncomment.contains(M230)) {
         if (!uncomment.contains(M6) || m_settings->toolChangeUseCommands() || m_settings->toolChangePause()) setSenderState(SenderPausing);
     }
 
     // Queue offsets request on G92, G10 commands
-    static QRegExp G92("(G92|G10)(?!\\d)");
+    static const QRegularExpression G92(R"((G92|G10)(?!\d))");
     if (uncomment.contains(G92)) sendCommand("$#", -3, showInConsole, true);
 
     m_currentConnection->send(command);
@@ -295,7 +295,7 @@ void GrblController::sendNextFileCommands()
     if (!m_lineCount || !m_lineAt) return;
 
     auto command = m_lineAt(m_fileCommandIndex);
-    static QRegExp M230("(M0*2|M30|M0*6)(?!\\d)");
+    static const QRegularExpression M230(R"((M0*2|M30|M0*6)(?!\d))");
 
     while ((bufferLength() + command.length() + 1) <= BUFFERLENGTH
         && m_fileCommandIndex < m_lineCount() - 1
@@ -312,7 +312,7 @@ void GrblController::sendNextFileCommands()
 void GrblController::storeParserState()
 {
     m_storedParserStatus = m_parserStatusProvider().remove(
-                QRegExp("GC:|\\[|\\]|G[01234]\\s|M[0345]+\\s|\\sF[\\d\\.]+|\\sS[\\d\\.]+"));
+                QRegularExpression(R"(GC:|\[|\]|G[01234]\s|M[0345]+\s|\sF[\d\.]+|\sS[\d\.]+)"));
 }
 
 void GrblController::restoreParserState()
@@ -358,13 +358,14 @@ void GrblController::completeTransfer()
 
 void GrblController::processSettingsResponse(const QString &response)
 {
-    static QRegExp gs("\\$(\\d+)\\=([^;]+)\\; ");
+    static const QRegularExpression gs(R"(\$(\d+)\=([^;]+)\; )");
     QMap<int, float> set;
     int p = 0;
+    QRegularExpressionMatch m;
 
-    while ((p = gs.indexIn(response, p)) != -1) {
-        set[gs.cap(1).toInt()] = gs.cap(2).toFloat();
-        p += gs.matchedLength();
+    while ((m = gs.match(response, p)).hasMatch()) {
+        set[m.captured(1).toInt()] = m.captured(2).toFloat();
+        p = m.capturedEnd();
     }
 
     emit settingsResponseReceived(set);
@@ -389,19 +390,21 @@ void GrblController::onConnectionDataReceived(QString data)
         m_statusReceived = true;
 
         // Update machine coordinates
-        static QRegExp mpx("MPos:([^,]*),([^,]*),([^,>|]*)(?:,([^,|]*))*");
-        if (mpx.indexIn(data) != -1) {
-            m_lastMachinePos = QVector4D(mpx.cap(1).toDouble(), mpx.cap(2).toDouble(),
-                                          mpx.cap(3).toDouble(), mpx.cap(4).toDouble());
+        static const QRegularExpression mpx(R"(MPos:([^,]*),([^,]*),([^,>|]*)(?:,([^,|]*))*)");
+        QRegularExpressionMatch mpxMatch = mpx.match(data);
+        if (mpxMatch.hasMatch()) {
+            m_lastMachinePos = QVector4D(mpxMatch.captured(1).toDouble(), mpxMatch.captured(2).toDouble(),
+                                          mpxMatch.captured(3).toDouble(), mpxMatch.captured(4).toDouble());
             report.hasMachinePos = true;
         }
         report.machinePos = m_lastMachinePos;
 
         // Status
         DeviceState state = DeviceUnknown;
-        static QRegExp stx("<([^,^>^|]*)");
-        if (stx.indexIn(data) != -1) {
-            state = stateFromString(stx.cap(1));
+        static const QRegularExpression stx(R"(<([^,^>^|]*))");
+        QRegularExpressionMatch stxMatch = stx.match(data);
+        if (stxMatch.hasMatch()) {
+            state = stateFromString(stxMatch.captured(1));
 
             // Abort handling: mirrors the pre-refactor early-return exactly
             // — on the "abort settled to Idle" tick, NO further status
@@ -440,48 +443,54 @@ void GrblController::onConnectionDataReceived(QString data)
         report.previousState = m_deviceState;
 
         // Store work offset
-        static QRegExp wpx("WCO:([^,]*),([^,]*),([^,>|]*)(?:,([^,>|]*))*");
-        if (wpx.indexIn(data) != -1) {
-            m_lastWorkOffset = QVector4D(wpx.cap(1).toDouble(), wpx.cap(2).toDouble(),
-                                          wpx.cap(3).toDouble(), wpx.cap(4).toDouble());
+        static const QRegularExpression wpx(R"(WCO:([^,]*),([^,]*),([^,>|]*)(?:,([^,>|]*))*)");
+        QRegularExpressionMatch wpxMatch = wpx.match(data);
+        if (wpxMatch.hasMatch()) {
+            m_lastWorkOffset = QVector4D(wpxMatch.captured(1).toDouble(), wpxMatch.captured(2).toDouble(),
+                                          wpxMatch.captured(3).toDouble(), wpxMatch.captured(4).toDouble());
             report.hasWorkOffset = true;
         }
         report.workOffset = m_lastWorkOffset;
 
         // Process SD card status
         // SD:77.88,/sd/cutout1.nc
-        static QRegExp sdx("SD:([^,]*),([^,>|]*)");
-        if (sdx.indexIn(data) != -1) {
+        static const QRegularExpression sdx(R"(SD:([^,]*),([^,>|]*))");
+        QRegularExpressionMatch sdxMatch = sdx.match(data);
+        if (sdxMatch.hasMatch()) {
             report.sdActive = true;
-            report.sdPercentage = sdx.cap(1).toDouble();
-            report.sdFileName = sdx.cap(2);
+            report.sdPercentage = sdxMatch.captured(1).toDouble();
+            report.sdFileName = sdxMatch.captured(2);
         }
 
         // Get overridings
-        static QRegExp ov("Ov:([^,]*),([^,]*),([^,^>^|]*)");
-        if (ov.indexIn(data) != -1) {
+        static const QRegularExpression ov(R"(Ov:([^,]*),([^,]*),([^,^>^|]*))");
+        QRegularExpressionMatch ovMatch = ov.match(data);
+        if (ovMatch.hasMatch()) {
             report.hasOverrides = true;
-            report.feedOverride = ov.cap(1).toInt();
-            report.rapidOverride = ov.cap(2).toInt();
-            report.spindleOverride = ov.cap(3).toInt();
+            report.feedOverride = ovMatch.captured(1).toInt();
+            report.rapidOverride = ovMatch.captured(2).toInt();
+            report.spindleOverride = ovMatch.captured(3).toInt();
 
-            static QRegExp pn("Pn:([^|^>]*)");
-            if (pn.indexIn(data) != -1) {
-                report.pinState = pn.cap(1);
+            static const QRegularExpression pn(R"(Pn:([^|^>]*))");
+            QRegularExpressionMatch pnMatch = pn.match(data);
+            if (pnMatch.hasMatch()) {
+                report.pinState = pnMatch.captured(1);
             }
 
-            static QRegExp as("A:([^,^>^|]+)");
-            if (as.indexIn(data) != -1) {
-                report.accessoryState = as.cap(1);
+            static const QRegularExpression as(R"(A:([^,^>^|]+))");
+            QRegularExpressionMatch asMatch = as.match(data);
+            if (asMatch.hasMatch()) {
+                report.accessoryState = asMatch.captured(1);
             }
         }
 
         // Get feed/spindle values
-        static QRegExp fs("FS:([^,]*),([^,^|^>]*)");
-        if (fs.indexIn(data) != -1) {
+        static const QRegularExpression fs(R"(FS:([^,]*),([^,^|^>]*))");
+        QRegularExpressionMatch fsMatch = fs.match(data);
+        if (fsMatch.hasMatch()) {
             report.hasFeedSpeed = true;
-            report.feedText = fs.cap(1);
-            report.spindleSpeedText = fs.cap(2);
+            report.feedText = fsMatch.captured(1);
+            report.spindleSpeedText = fsMatch.captured(2);
         }
 
         // Store device state
@@ -547,14 +556,15 @@ void GrblController::onConnectionDataReceived(QString data)
                 }
 
                 // Clear command buffer on "M2" & "M30" command (old firmwares)
-                static QRegExp M230("(M0*2|M30)(?!\\d)");
+                static const QRegularExpression M230(R"((M0*2|M30)(?!\d))");
                 if (uncomment.contains(M230) && response.contains("ok") && !response.contains("Pgm End")) {
                     m_commands.clear();
                     m_queue.clear();
                 }
 
                 // Change state query time on check mode on
-                if (uncomment.contains(QRegExp("$[cC]"))) {
+                static const QRegularExpression checkModeRe(R"($[cC])");
+                if (uncomment.contains(checkModeRe)) {
                     m_timerStateQuery.setInterval(response.contains("Enable") ? 1000 : m_settings->queryStateTime());
                 }
 
@@ -607,8 +617,9 @@ void GrblController::onConnectionDataReceived(QString data)
                     }
 
                     // Check transfer complete (last row always blank, last command row = rowcount - 2)
+                    static const QRegularExpression M230End(R"((M0*2|M30)(?!\d))");
                     bool lastLine = m_lineCount && (m_fileProcessedCommandIndex == m_lineCount() - 2);
-                    if (lastLine || uncomment.contains(QRegExp("(M0*2|M30)(?!\\d)")))
+                    if (lastLine || uncomment.contains(M230End))
                     {
                         if (m_deviceState == DeviceRun) {
                             setSenderState(SenderStopping);
@@ -624,7 +635,7 @@ void GrblController::onConnectionDataReceived(QString data)
                 }
 
                 // Tool change mode
-                static QRegExp M6("(M0*6)(?!\\d)");
+                static const QRegularExpression M6(R"((M0*6)(?!\d))");
                 if ((m_senderState == SenderPausing) && uncomment.contains(M6)) {
                     setSenderState(SenderChangingTool);
                     // frmMain's slot shows the tool-change dialog(s) and,

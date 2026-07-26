@@ -21,6 +21,7 @@
 #include <QSplitter>
 #include <QInputDialog>
 #include <QElapsedTimer>
+#include <QRegularExpression>
 #include <QtConcurrent/QtConcurrent>
 #include <QClipboard>
 #include "frmmain.h"
@@ -678,7 +679,7 @@ void frmMain::on_actFileExit_triggered()
 
 void frmMain::on_actServiceSettings_triggered()
 {
-    m_settings->setShortcuts(findChildren<QAction*>(QRegExp("act.*")));
+    m_settings->setShortcuts(findChildren<QAction*>(QRegularExpression("act.*")));
 
     emit settingsAboutToShow();
 
@@ -939,7 +940,7 @@ void frmMain::on_cmdFileOpen_clicked()
         QString fileName  = QFileDialog::getOpenFileName(this, tr("Open"), m_lastFolder,
                                    tr("G-Code files (*.nc *.ncc *.ngc *.tap *.txt *.gcode);;All files (*.*)"));
 
-        if (!fileName.isEmpty()) m_lastFolder = fileName.left(fileName.lastIndexOf(QRegExp("[/\\\\]+")));
+        if (!fileName.isEmpty()) m_lastFolder = fileName.left(fileName.lastIndexOf(QRegularExpression(R"([/\\]+)")));
 
         if (fileName != "") {
             addRecentFile(fileName);
@@ -2257,13 +2258,15 @@ void frmMain::onGrblCommandResponded(QString command, int tableIndex, QString re
     // TODO: remove/rework
     // Store current coordinate system
     if (uncomment == "$G") {
-        static QRegExp g("G5[4-9]");
-        if (g.indexIn(response) != -1) {
-            m_storedVars.setCS(g.cap(0));
+        static const QRegularExpression g(R"(G5[4-9])");
+        QRegularExpressionMatch gMatch = g.match(response);
+        if (gMatch.hasMatch()) {
+            m_storedVars.setCS(gMatch.captured(0));
         }
-        static QRegExp t("T(\\d+)(?!\\d)");
-        if (t.indexIn(response) != -1) {
-            m_storedVars.setTool(g.cap(1).toInt());
+        static const QRegularExpression t(R"(T(\d+)(?!\d))");
+        QRegularExpressionMatch tMatch = t.match(response);
+        if (tMatch.hasMatch()) {
+            m_storedVars.setTool(gMatch.captured(1).toInt());
         }
     }
 
@@ -2276,9 +2279,10 @@ void frmMain::onGrblCommandResponded(QString command, int tableIndex, QString re
         if ((m_grbl->senderState() == SenderTransferring) || (m_grbl->senderState() == SenderStopping)) m_grbl->storeParserState();
 
         // Spindle speed
-        QRegExp rx(".*S([\\d\\.]+)");
-        if (rx.indexIn(response) != -1) {
-            double speed = rx.cap(1).toDouble();
+        static const QRegularExpression rx(R"(.*S([\d\.]+))");
+        QRegularExpressionMatch rxMatch = rx.match(response);
+        if (rxMatch.hasMatch()) {
+            double speed = rxMatch.captured(1).toDouble();
             ui->slbSpindle->setCurrentValue(speed);
         }
     }
@@ -2288,16 +2292,17 @@ void frmMain::onGrblCommandResponded(QString command, int tableIndex, QString re
 
     // Update probe coords on user commands
     if (uncomment.contains("G38.2") && tableIndex < 0) {
-        static QRegExp PRB(".*PRB:([^,]*),([^,]*),([^,:]*)(?:,([^,:]*))*");
-        if (PRB.indexIn(response) != -1) {
-            m_scriptApp->device()->setProbeCoordinates(PRB.cap(1).toDouble(), PRB.cap(2).toDouble(),
-                PRB.cap(3).toDouble(), PRB.cap(4).toDouble());
+        static const QRegularExpression PRB(R"(.*PRB:([^,]*),([^,]*),([^,:]*)(?:,([^,:]*))*)");
+        QRegularExpressionMatch PRBMatch = PRB.match(response);
+        if (PRBMatch.hasMatch()) {
+            m_scriptApp->device()->setProbeCoordinates(PRBMatch.captured(1).toDouble(), PRBMatch.captured(2).toDouble(),
+                PRBMatch.captured(3).toDouble(), PRBMatch.captured(4).toDouble());
 
             // TODO: remove
             m_storedVars.setCoords("PRB", QVector3D(
-                PRB.cap(1).toDouble(),
-                PRB.cap(2).toDouble(),
-                PRB.cap(3).toDouble()
+                PRBMatch.captured(1).toDouble(),
+                PRBMatch.captured(2).toDouble(),
+                PRBMatch.captured(3).toDouble()
             ));
         }
     }
@@ -2307,10 +2312,11 @@ void frmMain::onGrblCommandResponded(QString command, int tableIndex, QString re
         // Get probe Z coordinate
         // "[PRB:0.000,0.000,0.000:0];ok"
         // "[PRB:0.000,0.000,0.000,0.000:0];ok"
-        QRegExp rx(".*PRB:([^,]*),([^,]*),([^,:]*)");
+        static const QRegularExpression rx(R"(.*PRB:([^,]*),([^,]*),([^,:]*))");
+        QRegularExpressionMatch rxMatch = rx.match(response);
         double z = qQNaN();
-        if (rx.indexIn(response) != -1) {
-            z = toMetric(rx.cap(3).toDouble());
+        if (rxMatch.hasMatch()) {
+            z = toMetric(rxMatch.captured(3).toDouble());
         }
 
         static double firstZ;
@@ -3156,7 +3162,7 @@ void frmMain::preloadSettings()
     QSettings set;
     set.beginGroup("General");
 
-    qApp->setStyleSheet(QString(qApp->styleSheet()).replace(QRegExp("font-size:\\s*\\d+"), "font-size: "
+    qApp->setStyleSheet(QString(qApp->styleSheet()).replace(QRegularExpression(R"(font-size:\s*\d+)"), "font-size: "
         + set.value("fontSize", "9").toString()));
 
     set.endGroup();
@@ -3383,7 +3389,7 @@ void frmMain::storeSettings()
     ShortcutsMap m;
     QByteArray ba;
     QDataStream s(&ba, QIODevice::WriteOnly);
-    QList<QAction*> acts = findChildren<QAction*>(QRegExp("act.*"));
+    QList<QAction*> acts = findChildren<QAction*>(QRegularExpression("act.*"));
 
     foreach (QAction *a, acts) m[a->objectName()] = a->shortcuts();
     s << m;
@@ -3518,7 +3524,7 @@ void frmMain::restoreSettings()
             pick->setColor(QColor(set->value(pick->objectName().mid(3), "black").toString()));
         }
     } else {
-        m_settings->setShortcuts(findChildren<QAction*>(QRegExp("act.*")));
+        m_settings->setShortcuts(findChildren<QAction*>(QRegularExpression("act.*")));
         m_settings->setDefaultSettings();
     }
 
@@ -3755,8 +3761,8 @@ void frmMain::loadProfiles(QSettings &set)
 void frmMain::applySettings()
 {
     // Apply font size QWidget {font-size: 8pt}
-    qApp->setStyleSheet(QString(qApp->styleSheet()).replace(QRegExp(
-        "QWidget \\{font-size: \\d+pt\\}"),
+    qApp->setStyleSheet(QString(qApp->styleSheet()).replace(QRegularExpression(
+        R"(QWidget \{font-size: \d+pt\})"),
         QString("QWidget {font-size: %1pt}").arg(m_settings->fontSize()))
     );
 
@@ -3784,7 +3790,7 @@ void frmMain::applySettings()
     ui->dockUser->setMaximumWidth(panelWidth + ui->scrollArea->verticalScrollBar()->width());
 
     // Update shortcuts
-    QList<QAction*> acts = findChildren<QAction*>(QRegExp("act.*"));
+    QList<QAction*> acts = findChildren<QAction*>(QRegularExpression("act.*"));
     QTableWidget *shortcuts = m_settings->shortcuts();
 
     for (int i = 0; i < shortcuts->rowCount(); i++) {
@@ -4360,26 +4366,28 @@ void frmMain::ensureParserUpdateNotRunning()
 
 void frmMain::storeOffsetsVars(QString response)
 {
-    static QRegExp gx("\\[(G5[4-9]|G28|G30|G92|PRB):([\\d\\.\\-]+),([\\d\\.\\-]+),([\\d\\.\\-]+)");
-    static QRegExp tx("\\[(TLO):([\\d\\.\\-]+)");
+    static const QRegularExpression gx(R"(\[(G5[4-9]|G28|G30|G92|PRB):([\d\.\-]+),([\d\.\-]+),([\d\.\-]+))");
+    static const QRegularExpression tx(R"(\[(TLO):([\d\.\-]+))");
 
     // TODO: remove
     int p = 0;
-    while ((p = gx.indexIn(response, p)) != -1) {
-        m_storedVars.setCoords(gx.cap(1), QVector3D(
-            gx.cap(2).toDouble(),
-            gx.cap(3).toDouble(),
-            gx.cap(4).toDouble()
+    QRegularExpressionMatch gxMatch;
+    while ((gxMatch = gx.match(response, p)).hasMatch()) {
+        m_storedVars.setCoords(gxMatch.captured(1), QVector3D(
+            gxMatch.captured(2).toDouble(),
+            gxMatch.captured(3).toDouble(),
+            gxMatch.captured(4).toDouble()
         ));
 
-        p += gx.matchedLength();
+        p = gxMatch.capturedEnd();
     }
 
-    if (tx.indexIn(response) != -1) {
-        m_storedVars.setCoords(tx.cap(1), QVector3D(
+    QRegularExpressionMatch txMatch = tx.match(response);
+    if (txMatch.hasMatch()) {
+        m_storedVars.setCoords(txMatch.captured(1), QVector3D(
             0,
             0,
-            tx.cap(2).toDouble()
+            txMatch.captured(2).toDouble()
         ));
     }
 }

@@ -3,6 +3,7 @@
 
 #include "frmsettings.h"
 #include "ui_frmsettings.h"
+#include <QRegularExpression>
 #include <QtSerialPort/QSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
 #include <QDebug>
@@ -89,10 +90,11 @@ frmSettings::frmSettings(QWidget *parent) :
     QDir d(qApp->applicationDirPath() + "/translations");
     QStringList fl = QStringList() << "candle_*.qm";
     QStringList tl = d.entryList(fl, QDir::Files);
-    QRegExp fx("_([^\\.]+)");
+    QRegularExpression fx(R"(_([^\.]+))");
     foreach (const QString &t, tl) {
-        if (fx.indexIn(t) != -1) {
-            QLocale l(fx.cap(1));
+        QRegularExpressionMatch m = fx.match(t);
+        if (m.hasMatch()) {
+            QLocale l(m.captured(1));
             ui->cboLanguage->addItem(l.nativeLanguageName(), l.name().left(2));
         }
     }
@@ -345,7 +347,7 @@ void frmSettings::setLaserPowerMax(int value)
 
 QStringList frmSettings::jogSteps()
 {
-    return ui->txtJogSteps->text().split(QRegExp("\\s*,\\s*"));
+    return ui->txtJogSteps->text().split(QRegularExpression(R"(\s*,\s*)"));
 }
 
 void frmSettings::setJogSteps(QStringList steps)
@@ -355,7 +357,7 @@ void frmSettings::setJogSteps(QStringList steps)
 
 QStringList frmSettings::jogFeeds()
 {
-    return ui->txtJogFeeds->text().split(QRegExp("\\s*,\\s"));
+    return ui->txtJogFeeds->text().split(QRegularExpression(R"(\s*,\s)"));
 }
 
 void frmSettings::setJogFeeds(QStringList feeds)
