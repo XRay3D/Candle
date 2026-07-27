@@ -2,9 +2,9 @@
 
 #include <functional>
 
-#include <QObject>
 #include <QList>
 #include <QMap>
+#include <QObject>
 #include <QString>
 #include <QTimer>
 #include <QVector4D>
@@ -14,35 +14,35 @@ class GrblSettingsProvider;
 struct GrblStatusReport;
 
 enum SenderState {
-    SenderUnknown = -1,
+    SenderUnknown      = -1,
     SenderTransferring = 0,
-    SenderPausing = 1,
-    SenderPaused = 2,
-    SenderStopping = 3,
-    SenderStopped = 4,
+    SenderPausing      = 1,
+    SenderPaused       = 2,
+    SenderStopping     = 3,
+    SenderStopped      = 4,
     SenderChangingTool = 5
 };
 
 enum DeviceState {
     DeviceUnknown = -1,
-    DeviceIdle = 1,
-    DeviceAlarm = 2,
-    DeviceRun = 3,
-    DeviceHome = 4,
-    DeviceHold0 = 5,
-    DeviceHold1 = 6,
-    DeviceQueue = 7,
-    DeviceCheck = 8,
-    DeviceDoor0 = 9,
-    DeviceDoor1 = 10,
-    DeviceDoor2 = 11,
-    DeviceDoor3 = 12,
-    DeviceJog = 13,
-    DeviceSleep = 14
+    DeviceIdle    = 1,
+    DeviceAlarm   = 2,
+    DeviceRun     = 3,
+    DeviceHome    = 4,
+    DeviceHold0   = 5,
+    DeviceHold1   = 6,
+    DeviceQueue   = 7,
+    DeviceCheck   = 8,
+    DeviceDoor0   = 9,
+    DeviceDoor1   = 10,
+    DeviceDoor2   = 11,
+    DeviceDoor3   = 12,
+    DeviceJog     = 13,
+    DeviceSleep   = 14
 };
 
 enum SendCommandResult {
-    SendDone = 0,
+    SendDone  = 0,
     SendEmpty = 1,
     SendQueue = 2
 };
@@ -65,9 +65,9 @@ struct CommandAttributes {
     }
 
     CommandAttributes(int len, int tableIdx, QString cmd) {
-        length = len;
+        length     = len;
         tableIndex = tableIdx;
-        command = cmd;
+        command    = cmd;
     }
 };
 
@@ -80,8 +80,8 @@ struct CommandQueue {
     }
 
     CommandQueue(QString cmd, int idx, bool show) {
-        command = cmd;
-        tableIndex = idx;
+        command       = cmd;
+        tableIndex    = idx;
         showInConsole = show;
     }
 };
@@ -102,26 +102,25 @@ struct CommandQueue {
 // combo boxes, the visualizer's parser-status text) to build a command —
 // there's no protocol logic worth separating out. They remain frmMain
 // methods, called from its GrblController-signal slots instead of inline.
-class GrblController : public QObject
-{
+class GrblController : public QObject {
     Q_OBJECT
 
 public:
     static const int BUFFERLENGTH = 127;
 
-    explicit GrblController(GrblSettingsProvider *settings,
-                             std::function<QString(QString)> scriptEvaluator,
-                             std::function<GrblErrorAction(QString)> errorDecision,
-                             std::function<bool()> keyboardControlActive,
-                             std::function<QString()> parserStatusProvider,
-                             QObject *parent = nullptr);
+    explicit GrblController(GrblSettingsProvider* settings,
+        std::function<QString(QString)> scriptEvaluator,
+        std::function<GrblErrorAction(QString)> errorDecision,
+        std::function<bool()> keyboardControlActive,
+        std::function<QString()> parserStatusProvider,
+        QObject* parent = nullptr);
     ~GrblController();
 
     // Takes ownership of `connection` (the old one, if any, is expected to
     // already have been disconnected/deleted by the caller — mirrors how
     // frmMain::applySettings() manages the concrete Connection subclass);
     // wires its 4 signals to this controller's internal handling.
-    void setConnection(Connection *connection);
+    void setConnection(Connection* connection);
     Connection* connection() const { return m_currentConnection; }
 
     // Program line provider, standing in for the table model: `count()` is
@@ -137,7 +136,17 @@ public:
 
     // Raw passthrough of a realtime byte/command (hold, resume, overrides,
     // soft-reset, jog-cancel, ...) straight to the wire.
-    void sendRealtime(const QByteArray &data);
+    void sendRealtime(const QByteArray& data);
+
+    // Named single-byte realtime commands, so callers (frmMain) go through
+    // the controller instead of reaching into connection()->send() directly.
+    void sendFeedHold();           // '!'
+    void sendCycleStartResume();   // '~'
+    void sendSafetyDoor();         // 0x84
+    void sendJogCancel();          // 0x85
+    void sendToggleSpindleStop();  // 0x9E
+    void sendToggleFloodCoolant(); // 0xA0
+    void sendRapidOverride(int percent); // 0x95/0x96/0x97 for 100/50/25
 
     void setSenderState(SenderState state);
     SenderState senderState() const { return m_senderState; }
@@ -155,9 +164,9 @@ public:
     // Expands '{...}' script macros in a command via the injected evaluator.
     QString evaluateCommand(QString command);
 
-    static bool dataIsFloating(const QString &data);
-    static bool dataIsEnd(const QString &data);
-    static bool dataIsReset(const QString &data);
+    static bool dataIsFloating(const QString& data);
+    static bool dataIsEnd(const QString& data);
+    static bool dataIsReset(const QString& data);
 
     // Stops the state-query/reconnect timers, disconnects if connected, and
     // drops any in-flight/queued commands — the sequence frmMain's
@@ -190,8 +199,7 @@ public:
     void requestSpindleSpeedUpdate() { m_updateSpindleSpeed = true; }
 
     QVector4D jogVector() const { return m_jogVector; }
-    void addJogVector(const QVector4D &delta) { m_jogVector += delta; }
-    void removeJogVector(const QVector4D &delta) { m_jogVector -= delta; }
+    void execJog(const QVector4D& delta, double jogStep, double jogFeed);
     void stopJog();
 
 signals:
@@ -207,7 +215,7 @@ signals:
     // dialog, `response` has already been cleared and this fires with an
     // empty string — exactly as it did before this class existed.
     void responseReceived(QString command, int tableIndex, QString response);
-    void statusUpdated(const GrblStatusReport &report);
+    void statusUpdated(const GrblStatusReport& report);
     // Fired whenever a command is actually dispatched (queued commands fire
     // this once they're finally sent too), in send order — lets the UI
     // mirror the console-echo bookkeeping (and its "-1 means not echoed"
@@ -254,11 +262,11 @@ private:
     void setDeviceState(DeviceState state);
     void completeTransfer();
     void restoreOffsets();
-    void processSettingsResponse(const QString &response);
+    void processSettingsResponse(const QString& response);
     bool compareCoordinates(double x, double y, double z) const;
-    static DeviceState stateFromString(const QString &name);
+    static DeviceState stateFromString(const QString& name);
 
-    GrblSettingsProvider *m_settings;
+    GrblSettingsProvider* m_settings;
     std::function<QString(QString)> m_scriptEvaluator;
     std::function<GrblErrorAction(QString)> m_errorDecision;
     std::function<bool()> m_keyboardControlActive;
@@ -270,7 +278,7 @@ private:
     DeviceState m_deviceState;
     bool m_sdRun;
 
-    Connection *m_currentConnection;
+    Connection* m_currentConnection;
 
     QList<CommandAttributes> m_commands;
     QList<CommandQueue> m_queue;

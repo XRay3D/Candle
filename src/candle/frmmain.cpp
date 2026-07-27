@@ -1109,7 +1109,8 @@ void frmMain::on_cmdUnlock_clicked()
 
 void frmMain::on_cmdHold_clicked(bool checked)
 {
-    m_grbl->connection()->send(checked ? "!" : "~");
+    if (checked) m_grbl->sendFeedHold();
+    else m_grbl->sendCycleStartResume();
 }
 
 void frmMain::on_cmdSleep_clicked()
@@ -1119,12 +1120,12 @@ void frmMain::on_cmdSleep_clicked()
 
 void frmMain::on_cmdDoor_clicked()
 {
-    m_grbl->connection()->send("\x84");
+    m_grbl->sendSafetyDoor();
 }
 
 void frmMain::on_cmdFlood_clicked()
 {
-    m_grbl->connection()->send("\xa0");
+    m_grbl->sendToggleFloodCoolant();
 }
 
 void frmMain::on_cmdSpindle_toggled(bool checked)
@@ -1143,7 +1144,7 @@ void frmMain::on_cmdSpindle_toggled(bool checked)
 void frmMain::on_cmdSpindle_clicked(bool checked)
 {
     if (ui->cmdHold->isChecked()) {
-        m_grbl->connection()->send("\x9e");
+        m_grbl->sendToggleSpindleStop();
     } else {
         m_grbl->sendCommand(checked ? QString("M3 S%1").arg(ui->slbSpindle->value()) : "M5", -1, m_settings->showUICommands());
     }
@@ -1737,128 +1738,140 @@ void frmMain::on_cmdHeightMapOriginTool_clicked()
 
 void frmMain::on_cmdYPlus_pressed()
 {
-    m_grbl->addJogVector(QVector4D(0, 1, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, +1, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdYPlus_released()
 {
-    m_grbl->removeJogVector(QVector4D(0, 1, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, -1, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdYMinus_pressed()
 {
-    m_grbl->addJogVector(QVector4D(0, -1, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, -1, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdYMinus_released()
 {
-    m_grbl->removeJogVector(QVector4D(0, -1, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, +1, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdXPlus_pressed()
 {
-    m_grbl->addJogVector(QVector4D(1, 0, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(+1, 0, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdXPlus_released()
 {
-    m_grbl->removeJogVector(QVector4D(1, 0, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(-1, 0, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdXMinus_pressed()
 {
-    m_grbl->addJogVector(QVector4D(-1, 0, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(-1, 0, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdXMinus_released()
 {
-    m_grbl->removeJogVector(QVector4D(-1, 0, 0, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(+1, 0, 0, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdZPlus_pressed()
 {
-    m_grbl->addJogVector(QVector4D(0, 0, 1, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, +1, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdZPlus_released()
 {
-    m_grbl->removeJogVector(QVector4D(0, 0, 1, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, -1, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdZMinus_pressed()
 {
-    m_grbl->addJogVector(QVector4D(0, 0, -1, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, -1, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdZMinus_released()
 {
-    m_grbl->removeJogVector(QVector4D(0, 0, -1, 0));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, +1, 0),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdAMinus_pressed()
 {
-    if (!ui->cmdAMinus->isVisible())
-        return;
+    if (!ui->cmdAMinus->isVisible()) return;
 
-    m_grbl->addJogVector(QVector4D(0, 0, 0, -1));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, 0, -1),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdAMinus_released()
 {
-    if (!ui->cmdAMinus->isVisible())
-        return;
+    if (!ui->cmdAMinus->isVisible()) return;
 
-    m_grbl->removeJogVector(QVector4D(0, 0, 0, -1));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, 0, +1),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdAPlusX_pressed()
 {
-    if (!ui->cmdAPlusX->isVisible())
-        return;
+    if (!ui->cmdAPlusX->isVisible()) return;
 
-    m_grbl->addJogVector(QVector4D(0, 0, 0, 1));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, 0, +1),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdAPlusX_released()
 {
-    if (!ui->cmdAPlusX->isVisible())
-        return;
+    if (!ui->cmdAPlusX->isVisible()) return;
 
-    m_grbl->removeJogVector(QVector4D(0, 0, 0, 1));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, 0, -1),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdAPlusY_pressed()
 {
-    if (!ui->cmdAPlusY->isVisible())
-        return;
+    if (!ui->cmdAPlusY->isVisible()) return;
 
-    m_grbl->addJogVector(QVector4D(0, 0, 0, 1));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, 0, +1),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdAPlusY_released()
 {
-    if (!ui->cmdAPlusY->isVisible())
-        return;
+    if (!ui->cmdAPlusY->isVisible()) return;
 
-    m_grbl->removeJogVector(QVector4D(0, 0, 0, 1));
-    jogStep();
+    m_grbl->execJog(QVector4D(0, 0, 0, -1),
+                    ui->cboJogStep->currentText().toDouble(),
+                    ui->cboJogFeed->currentText().toDouble());
 }
 
 void frmMain::on_cmdStop_clicked()
@@ -2177,17 +2190,8 @@ void frmMain::onGrblStatusUpdated(const GrblStatusReport &report)
 
         int target = ui->slbRapidOverride->isChecked() ? ui->slbRapidOverride->value() : 100;
 
-        if (rapid != target) switch (target) {
-        case 25:
-            m_grbl->connection()->send("\x97");
-            break;
-        case 50:
-            m_grbl->connection()->send("\x96");
-            break;
-        case 100:
-            m_grbl->connection()->send("\0x95");
-            break;
-        }
+        if (rapid != target)
+            m_grbl->sendRapidOverride(target);
 
         // Update pins state
         QString pinState;
@@ -4962,9 +4966,9 @@ void frmMain::updateOverride(SliderBox *slider, int value, char command)
     bool smallStep = abs(target - slider->currentValue()) < 10 || m_settings->queryStateTime() < 100;
 
     if (slider->currentValue() < target) {
-        m_grbl->connection()->send(QByteArray(1, char(smallStep ? command + 2 : command)));
+        m_grbl->sendRealtime(QByteArray(1, char(smallStep ? command + 2 : command)));
     } else if (slider->currentValue() > target) {
-        m_grbl->connection()->send(QByteArray(1, char(smallStep ? command + 3 : command + 1)));
+        m_grbl->sendRealtime(QByteArray(1, char(smallStep ? command + 3 : command + 1)));
     }
 }
 
@@ -5386,32 +5390,6 @@ QList<LineSegment*> frmMain::subdivideSegment(LineSegment* segment)
     return list;
 }
 
-void frmMain::jogStep()
-{
-    if (ui->cboJogStep->currentText().toDouble() != 0) {
-        QVector4D vec = m_grbl->jogVector() * ui->cboJogStep->currentText().toDouble();
-
-        if (vec.length()) {
-            if (m_settings->axisAEnabled()) {
-                m_grbl->sendCommand(QString("$J=%1G91X%2Y%3Z%4A%5F%6")
-                    .arg(m_settings->units() ? "G20" : "G21")
-                    .arg(vec.x(), 0, 'f', m_settings->units() ? 4 : 3)
-                    .arg(vec.y(), 0, 'f', m_settings->units() ? 4 : 3)
-                    .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
-                    .arg(vec.w(), 0, 'f', 3)
-                    .arg(ui->cboJogFeed->currentText().toDouble()), -3, m_settings->showUICommands());
-            } else {
-                m_grbl->sendCommand(QString("$J=%1G91X%2Y%3Z%4F%5")
-                    .arg(m_settings->units() ? "G20" : "G21")
-                    .arg(vec.x(), 0, 'f', m_settings->units() ? 4 : 3)
-                    .arg(vec.y(), 0, 'f', m_settings->units() ? 4 : 3)
-                    .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
-                    .arg(ui->cboJogFeed->currentText().toDouble()), -3, m_settings->showUICommands());
-            }
-        }
-    }
-}
-
 void frmMain::jogContinuous()
 {
     static bool block = false;
@@ -5430,7 +5408,7 @@ void frmMain::jogContinuous()
                 QElapsedTimer t;
                 t.start();
 
-                m_grbl->connection()->send("\x85");
+                m_grbl->sendJogCancel();
                 while (m_grbl->deviceState() == DeviceJog && t.elapsed() < 5000)
                     qApp->processEvents();
 

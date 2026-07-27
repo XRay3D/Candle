@@ -450,7 +450,6 @@ private:
     void updateProgramEstimatedTime(const QList<LineSegment *> &lines);
     void ensureProgramEstimatedTimeUpdateNotRunning();
     QList<LineSegment *> subdivideSegment(LineSegment *segment);
-    void jogStep();
     void jogContinuous();
     double toMetric(double value);
     double toInches(double value);

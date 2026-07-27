@@ -1,6 +1,6 @@
 #include "grblcontroller.h"
-#include "grblstatusreport.h"
 #include "grblsettingsprovider.h"
+#include "grblstatusreport.h"
 
 #include <qmath.h>
 
@@ -9,12 +9,12 @@
 #include "connections/connection.h"
 #include "parser/gcodepreprocessorutils.h"
 
-GrblController::GrblController(GrblSettingsProvider *settings,
-                                std::function<QString(QString)> scriptEvaluator,
-                                std::function<GrblErrorAction(QString)> errorDecision,
-                                std::function<bool()> keyboardControlActive,
-                                std::function<QString()> parserStatusProvider,
-                                QObject *parent)
+GrblController::GrblController(GrblSettingsProvider* settings,
+    std::function<QString(QString)> scriptEvaluator,
+    std::function<GrblErrorAction(QString)> errorDecision,
+    std::function<bool()> keyboardControlActive,
+    std::function<QString()> parserStatusProvider,
+    QObject* parent)
     : QObject(parent)
     , m_settings(settings)
     , m_scriptEvaluator(scriptEvaluator)
@@ -51,9 +51,7 @@ GrblController::GrblController(GrblSettingsProvider *settings,
     m_timerStateQuery.start();
 }
 
-GrblController::~GrblController()
-{
-}
+GrblController::~GrblController(){}
 
 void GrblController::setConnection(Connection *connection)
 {
@@ -73,9 +71,48 @@ void GrblController::setLineProvider(std::function<int()> count, std::function<Q
     m_lineAt = at;
 }
 
-void GrblController::sendRealtime(const QByteArray &data)
+void GrblController::sendRealtime(const QByteArray& data)
 {
     if (m_currentConnection) m_currentConnection->send(data);
+}
+
+void GrblController::sendFeedHold()
+{
+    sendRealtime("!");
+}
+
+void GrblController::sendCycleStartResume()
+{
+    sendRealtime("~");
+}
+
+void GrblController::sendSafetyDoor()
+{
+    sendRealtime("\x84");
+}
+
+void GrblController::sendJogCancel()
+{
+    sendRealtime("\x85");
+}
+
+void GrblController::sendToggleSpindleStop()
+{
+    sendRealtime("\x9E");
+}
+
+void GrblController::sendToggleFloodCoolant()
+{
+    sendRealtime("\xA0");
+}
+
+void GrblController::sendRapidOverride(int percent)
+{
+    switch (percent) {
+    case 25:  sendRealtime("\x97"); break;
+    case 50:  sendRealtime("\x96"); break;
+    case 100: sendRealtime("\x95"); break;
+    }
 }
 
 void GrblController::shutdown()
@@ -88,6 +125,32 @@ void GrblController::shutdown()
     if (m_queue.length() > 0) {
         m_commands.clear();
         m_queue.clear();
+    }
+}
+
+void GrblController::execJog(const QVector4D &delta, double jogStep, double jogFeed)
+{
+    QVector4D vec = (m_jogVector += delta) * jogStep;
+    if (qFuzzyIsNull(vec.length())) return;
+
+    const int units = m_settings->units();
+    if (m_settings->axisAEnabled()) {
+        sendCommand(QString("$J=%1G91X%2Y%3Z%4A%5F%6")
+                        .arg(units ? "G20" : "G21")
+                        .arg(vec.x(), 0, 'f', units ? 4 : 3)
+                        .arg(vec.y(), 0, 'f', units ? 4 : 3)
+                        .arg(vec.z(), 0, 'f', units ? 4 : 3)
+                        .arg(vec.w(), 0, 'f', 3)
+                        .arg(jogFeed),
+            -3, m_settings->showUICommands());
+    } else {
+        sendCommand(QString("$J=%1G91X%2Y%3Z%4F%5")
+                        .arg(units ? "G20" : "G21")
+                        .arg(vec.x(), 0, 'f', units ? 4 : 3)
+                        .arg(vec.y(), 0, 'f', units ? 4 : 3)
+                        .arg(vec.z(), 0, 'f', units ? 4 : 3)
+                        .arg(jogFeed),
+            -3, m_settings->showUICommands());
     }
 }
 
@@ -174,19 +237,29 @@ bool GrblController::dataIsReset(const QString &data)
     return re.match(data.toUpper()).hasMatch();
 }
 
-DeviceState GrblController::stateFromString(const QString &name)
+DeviceState GrblController::stateFromString(const QString& name)
 {
-    static const QMap<QString, DeviceState> map {
-        {"Unknown", DeviceUnknown}, {"Idle", DeviceIdle}, {"Alarm", DeviceAlarm},
-        {"Run", DeviceRun}, {"Home", DeviceHome}, {"Hold:0", DeviceHold0}, {"Hold:1", DeviceHold1},
-        {"Queue", DeviceQueue}, {"Check", DeviceCheck}, {"Door:0", DeviceDoor0}, {"Door:1", DeviceDoor1},
-        {"Door:2", DeviceDoor2}, {"Door:3", DeviceDoor3}, {"Jog", DeviceJog}, {"Sleep", DeviceSleep}
+    static const QMap<QString, DeviceState> map{
+        {"Unknown", DeviceUnknown},
+        {"Idle",    DeviceIdle   },
+        {"Alarm",   DeviceAlarm  },
+        {"Run",     DeviceRun    },
+        {"Home",    DeviceHome   },
+        {"Hold:0",  DeviceHold0  },
+        {"Hold:1",  DeviceHold1  },
+        {"Queue",   DeviceQueue  },
+        {"Check",   DeviceCheck  },
+        {"Door:0",  DeviceDoor0  },
+        {"Door:1",  DeviceDoor1  },
+        {"Door:2",  DeviceDoor2  },
+        {"Door:3",  DeviceDoor3  },
+        {"Jog",     DeviceJog    },
+        {"Sleep",   DeviceSleep  }
     };
     return map.value(name, DeviceUnknown);
 }
 
-bool GrblController::compareCoordinates(double x, double y, double z) const
-{
+bool GrblController::compareCoordinates(double x, double y, double z) const {
     return m_lastMachinePos.x() == x && m_lastMachinePos.y() == y && m_lastMachinePos.z() == z;
 }
 
@@ -299,9 +372,9 @@ void GrblController::sendNextFileCommands()
 
     while ((bufferLength() + command.length() + 1) <= BUFFERLENGTH
         && m_fileCommandIndex < m_lineCount() - 1
-        && !(!m_commands.isEmpty() && GcodePreprocessorUtils::removeComment(m_commands.last().command).contains(M230))
-        )
-    {
+        && !(!m_commands.isEmpty()
+        && GcodePreprocessorUtils::removeComment(m_commands.last().command)
+             .contains(M230))) {
         emit programCommandSent(m_fileCommandIndex);
         sendCommand(command, m_fileCommandIndex, m_settings->showProgramCommands());
         m_fileCommandIndex++;
@@ -312,29 +385,32 @@ void GrblController::sendNextFileCommands()
 void GrblController::storeParserState()
 {
     m_storedParserStatus = m_parserStatusProvider().remove(
-                QRegularExpression(R"(GC:|\[|\]|G[01234]\s|M[0345]+\s|\sF[\d\.]+|\sS[\d\.]+)"));
+        QRegularExpression(R"(GC:|\[|\]|G[01234]\s|M[0345]+\s|\sF[\d\.]+|\sS[\d\.]+)"));
 }
 
 void GrblController::restoreParserState()
 {
-    if (!m_storedParserStatus.isEmpty()) sendCommand(m_storedParserStatus, -1, m_settings->showUICommands());
+    if (!m_storedParserStatus.isEmpty())
+        sendCommand(m_storedParserStatus, -1, m_settings->showUICommands());
 }
 
 void GrblController::restoreOffsets()
 {
     // Still have pre-reset working position
-    sendCommand(QString("%4G53G90X%1Y%2Z%3").arg(m_lastMachinePos.x())
-                                       .arg(m_lastMachinePos.y())
-                                       .arg(m_lastMachinePos.z())
-                                       .arg(m_settings->units() ? "G20" : "G21"),
-                                       -2, m_settings->showUICommands());
+    sendCommand(QString("%4G53G90X%1Y%2Z%3")
+                .arg(m_lastMachinePos.x())
+                .arg(m_lastMachinePos.y())
+                .arg(m_lastMachinePos.z())
+                .arg(m_settings->units() ? "G20" : "G21"),
+        -2, m_settings->showUICommands());
 
     QVector4D workPos = m_lastMachinePos - m_lastWorkOffset;
-    sendCommand(QString("%4G92X%1Y%2Z%3").arg(workPos.x())
-                                       .arg(workPos.y())
-                                       .arg(workPos.z())
-                                       .arg(m_settings->units() ? "G20" : "G21"),
-                                       -2, m_settings->showUICommands());
+    sendCommand(QString("%4G92X%1Y%2Z%3")
+                .arg(workPos.x())
+                .arg(workPos.y())
+                .arg(workPos.z())
+                .arg(m_settings->units() ? "G20" : "G21"),
+        -2, m_settings->showUICommands());
 }
 
 void GrblController::completeTransfer()
@@ -356,14 +432,15 @@ void GrblController::completeTransfer()
     m_timerStateQuery.start();
 }
 
-void GrblController::processSettingsResponse(const QString &response)
+void GrblController::processSettingsResponse(const QString& response)
 {
     static const QRegularExpression gs(R"(\$(\d+)\=([^;]+)\; )");
     QMap<int, float> set;
     int p = 0;
     QRegularExpressionMatch m;
 
-    while ((m = gs.match(response, p)).hasMatch()) {
+    while ((m = gs.match(response, p)).hasMatch())
+    {
         set[m.captured(1).toInt()] = m.captured(2).toFloat();
         p = m.capturedEnd();
     }
@@ -394,7 +471,7 @@ void GrblController::onConnectionDataReceived(QString data)
         QRegularExpressionMatch mpxMatch = mpx.match(data);
         if (mpxMatch.hasMatch()) {
             m_lastMachinePos = QVector4D(mpxMatch.captured(1).toDouble(), mpxMatch.captured(2).toDouble(),
-                                          mpxMatch.captured(3).toDouble(), mpxMatch.captured(4).toDouble());
+                    mpxMatch.captured(3).toDouble(), mpxMatch.captured(4).toDouble());
             report.hasMachinePos = true;
         }
         report.machinePos = m_lastMachinePos;
@@ -411,31 +488,33 @@ void GrblController::onConnectionDataReceived(QString data)
             // processing happens at all this tick (no statusUpdated, no
             // jogContinuous(), nothing).
             if (m_aborting) {
-                switch (state) {
-                    case DeviceIdle:
-                        if ((m_senderState == SenderStopped) && m_resetCompleted) {
-                            m_aborting = false;
-                            restoreParserState();
-                            restoreOffsets();
-                            return;
-                        }
-                        break;
-                    case DeviceHold0:
-                    case DeviceHold1:
-                    case DeviceQueue:
-                        if (!m_reseting && compareCoordinates(m_abortCheckX, m_abortCheckY, m_abortCheckZ)) {
-                            m_abortCheckX = qQNaN();
-                            m_abortCheckY = qQNaN();
-                            m_abortCheckZ = qQNaN();
-                            grblReset();
-                        } else {
-                            m_abortCheckX = m_lastMachinePos.x();
-                            m_abortCheckY = m_lastMachinePos.y();
-                            m_abortCheckZ = m_lastMachinePos.z();
-                        }
-                        break;
-                    default:
-                        break;
+                switch(state) {
+                case DeviceIdle:
+                    if ((m_senderState == SenderStopped) && m_resetCompleted)
+                    {
+                        m_aborting = false;
+                        restoreParserState();
+                        restoreOffsets();
+                        return;
+                    }
+                    break;
+                case DeviceHold0:
+                case DeviceHold1:
+                case DeviceQueue:
+                    if (!m_reseting && compareCoordinates(m_abortCheckX, m_abortCheckY, m_abortCheckZ))
+                    {
+                        m_abortCheckX = qQNaN();
+                        m_abortCheckY = qQNaN();
+                        m_abortCheckZ = qQNaN();
+                        grblReset();
+                    } else {
+                        m_abortCheckX = m_lastMachinePos.x();
+                        m_abortCheckY = m_lastMachinePos.y();
+                        m_abortCheckZ = m_lastMachinePos.z();
+                    }
+                    break;
+                default:
+                    break;
                 }
             }
         }
@@ -447,7 +526,7 @@ void GrblController::onConnectionDataReceived(QString data)
         QRegularExpressionMatch wpxMatch = wpx.match(data);
         if (wpxMatch.hasMatch()) {
             m_lastWorkOffset = QVector4D(wpxMatch.captured(1).toDouble(), wpxMatch.captured(2).toDouble(),
-                                          wpxMatch.captured(3).toDouble(), wpxMatch.captured(4).toDouble());
+                    wpxMatch.captured(3).toDouble(), wpxMatch.captured(4).toDouble());
             report.hasWorkOffset = true;
         }
         report.workOffset = m_lastWorkOffset;
@@ -505,10 +584,10 @@ void GrblController::onConnectionDataReceived(QString data)
     if (data.length() > 0) {
 
         if (m_commands.length() > 0 && !dataIsFloating(data)
-                && !(m_commands[0].command != "[CTRL+X]" && dataIsReset(data))) {
+            && !(m_commands[0].command != "[CTRL+X]" && dataIsReset(data))) {
 
             if ((m_commands[0].command != "[CTRL+X]" && dataIsEnd(data))
-                    || (m_commands[0].command == "[CTRL+X]" && dataIsReset(data))) {
+                || (m_commands[0].command == "[CTRL+X]" && dataIsReset(data))) {
 
                 m_responseAccumulator.append(data);
                 QString response = m_responseAccumulator;
@@ -593,7 +672,7 @@ void GrblController::onConnectionDataReceived(QString data)
                     // Process error messages
                     if (ca.tableIndex > -1 && response.toUpper().contains("ERROR") && !m_settings->ignoreErrors()) {
                         m_accumulatedErrors.append(QString::number(ca.tableIndex + 1) + ": " + ca.command
-                                        + " < " + response + "\n");
+                            + " < " + response + "\n");
 
                         if (!m_errorHolding) {
                             m_errorHolding = true;
@@ -619,8 +698,7 @@ void GrblController::onConnectionDataReceived(QString data)
                     // Check transfer complete (last row always blank, last command row = rowcount - 2)
                     static const QRegularExpression M230End(R"((M0*2|M30)(?!\d))");
                     bool lastLine = m_lineCount && (m_fileProcessedCommandIndex == m_lineCount() - 2);
-                    if (lastLine || uncomment.contains(M230End))
-                    {
+                    if (lastLine || uncomment.contains(M230End)) {
                         if (m_deviceState == DeviceRun) {
                             setSenderState(SenderStopping);
                         } else {
@@ -628,8 +706,7 @@ void GrblController::onConnectionDataReceived(QString data)
                         }
                     } else if (m_lineCount && (m_fileCommandIndex < m_lineCount())
                         && (m_senderState == SenderTransferring)
-                        && !m_errorHolding)
-                    {
+                        && !m_errorHolding) {
                         sendNextFileCommands();
                     }
                 }
@@ -643,8 +720,7 @@ void GrblController::onConnectionDataReceived(QString data)
                     emit toolChangeRequested();
                 }
                 if ((m_senderState == SenderChangingTool) && !m_settings->toolChangePause()
-                    && m_commands.isEmpty())
-                {
+                    && m_commands.isEmpty()) {
                     setSenderState(SenderTransferring);
                 }
 
@@ -702,14 +778,10 @@ void GrblController::onConnectionConnected()
 {
     emit connectionOpened();
 
-    QTimer::singleShot(1000, this, [this]()
-    {
-        if (m_settings->resetOnConnection())
-        {
+    QTimer::singleShot(1000, this, [this]() {
+        if (m_settings->resetOnConnection()) {
             grblReset();
-        }
-        else
-        {
+        } else {
             m_sdRun = false;
             m_fileCommandIndex = 0;
             m_commands.clear();
@@ -741,12 +813,9 @@ void GrblController::onTimerConnection()
 {
     bool holding = m_deviceState == DeviceHold0 || m_deviceState == DeviceHold1 || m_deviceState == DeviceQueue;
 
-    if (m_currentConnection && !m_currentConnection->isConnected())
-    {
+    if (m_currentConnection && !m_currentConnection->isConnected()) {
         m_currentConnection->connect();
-    }
-    else if (!m_homing && !holding && m_queue.length() == 0)
-    {
+    } else if (!m_homing && !holding && m_queue.length() == 0) {
         if (m_updateSpindleSpeed) {
             m_updateSpindleSpeed = false;
             emit spindleSpeedUpdateRequested();
