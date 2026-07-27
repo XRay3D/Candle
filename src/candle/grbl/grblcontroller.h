@@ -148,6 +148,12 @@ public:
     void sendToggleFloodCoolant(); // 0xA0
     void sendRapidOverride(int percent); // 0x95/0x96/0x97 for 100/50/25
 
+    // Named parameterized G-code/setting commands, so callers (frmMain)
+    // don't hand-build the QString themselves.
+    void sendSpindleOn(int speed);          // "M3 S<speed>"
+    void sendSpindleSpeed(int speed);       // "S<speed>"
+    void sendRapidMoveTo(double x, double y); // "G21G90G0X<x>Y<y>"
+
     void setSenderState(SenderState state);
     SenderState senderState() const { return m_senderState; }
     DeviceState deviceState() const { return m_deviceState; }
@@ -199,8 +205,11 @@ public:
     void requestSpindleSpeedUpdate() { m_updateSpindleSpeed = true; }
 
     QVector4D jogVector() const { return m_jogVector; }
+    void execJog(const QVector4D& delta, double jogFeed);
     void execJog(const QVector4D& delta, double jogStep, double jogFeed);
     void stopJog();
+private:
+    void execJog(const QVector4D& vec, double jogFeed, int tableIndex);
 
 signals:
     // Fired once a response is fully accumulated, carrying the complete

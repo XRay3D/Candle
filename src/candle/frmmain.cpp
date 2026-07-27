@@ -42,7 +42,7 @@ namespace {
 
 // Adapts frmSettings (a QDialog) to the read-only view GrblController needs,
 // keeping the controller free of any dependency on Qt Widgets.
-class FrmSettingsGrblAdapter : public GrblSettingsProvider
+class FrmSettingsGrblAdapter final : public GrblSettingsProvider
 {
 public:
     explicit FrmSettingsGrblAdapter(frmSettings *settings) : m_settings(settings) {}
@@ -227,6 +227,14 @@ void frmMain::initVariables()
 
 void frmMain::initUi()
 {
+    {
+        const int padding = QFontMetrics{font()}.boundingRect('m').width();
+        // setContentsMargins(padding, 0, padding, padding);
+        ui->_spacerLeft->setMaximumWidth(padding);
+        ui->_spacerRight->setMaximumWidth(padding);
+        ui->_spacerBot->setMaximumHeight(padding);
+    }
+
     // Drag&drop placeholders
     ui->fraDropDevice->setVisible(false);
     ui->fraDropModification->setVisible(false);
@@ -1145,8 +1153,10 @@ void frmMain::on_cmdSpindle_clicked(bool checked)
 {
     if (ui->cmdHold->isChecked()) {
         m_grbl->sendToggleSpindleStop();
+    } else if (checked) {
+        m_grbl->sendSpindleOn(ui->slbSpindle->value());
     } else {
-        m_grbl->sendCommand(checked ? QString("M3 S%1").arg(ui->slbSpindle->value()) : "M5", -1, m_settings->showUICommands());
+        m_grbl->sendCommand("M5", -1, m_settings->showUICommands());
     }
 }
 
@@ -1715,7 +1725,7 @@ void frmMain::on_cmdHeightMapLoad_clicked()
 
 void frmMain::on_cmdHeightMapOrigin_clicked()
 {
-    m_grbl->sendCommand(QString("G21G90G0X%1Y%2").arg(ui->txtHeightMapOriginX->value()).arg(ui->txtHeightMapOriginY->value()));
+    m_grbl->sendRapidMoveTo(ui->txtHeightMapOriginX->value(), ui->txtHeightMapOriginY->value());
 }
 
 void frmMain::on_cmdHeightMapBorderAuto_clicked()
@@ -2525,7 +2535,7 @@ void frmMain::onGrblHardwareResetDetected()
 
 void frmMain::onGrblSpindleSpeedUpdateRequested()
 {
-    m_grbl->sendCommand(QString("S%1").arg(ui->slbSpindle->value()), -2, m_settings->showUICommands());
+    m_grbl->sendSpindleSpeed(ui->slbSpindle->value());
 }
 
 void frmMain::onGrblErrorTextUpdated(QString accumulatedText)
@@ -5440,24 +5450,8 @@ void frmMain::jogContinuous()
             QVector4D vec = j * toInches(d);
             vec.setW(j.w() * 360.0);
 
-            if (vec.length()) {
-                if (m_settings->axisAEnabled()) {
-                    m_grbl->sendCommand(QString("$J=%1G91X%2Y%3Z%4A%5F%6")
-                        .arg(m_settings->units() ? "G20" : "G21")
-                        .arg(vec.x(), 0, 'f', m_settings->units() ? 4 : 3)
-                        .arg(vec.y(), 0, 'f', m_settings->units() ? 4 : 3)
-                        .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
-                        .arg(vec.w(), 0, 'f', 3)
-                        .arg(ui->cboJogFeed->currentText().toDouble()), -2, m_settings->showUICommands());
-                } else {
-                    m_grbl->sendCommand(QString("$J=%1G91X%2Y%3Z%4F%5")
-                        .arg(m_settings->units() ? "G20" : "G21")
-                        .arg(vec.x(), 0, 'f', m_settings->units() ? 4 : 3)
-                        .arg(vec.y(), 0, 'f', m_settings->units() ? 4 : 3)
-                        .arg(vec.z(), 0, 'f', m_settings->units() ? 4 : 3)
-                        .arg(ui->cboJogFeed->currentText().toDouble()), -2, m_settings->showUICommands());
-                }
-            }
+            m_grbl->execJog(vec, ui->cboJogFeed->currentText().toDouble());
+
             v = j;
         }
     }

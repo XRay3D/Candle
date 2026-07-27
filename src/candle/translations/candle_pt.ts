@@ -531,7 +531,7 @@
         <translation>&amp;Ajuda</translation>
     </message>
     <message>
-        <source>_spacerTop</source>
+        <source>_spacerBot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

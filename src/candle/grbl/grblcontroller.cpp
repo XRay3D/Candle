@@ -115,6 +115,21 @@ void GrblController::sendRapidOverride(int percent)
     }
 }
 
+void GrblController::sendSpindleOn(int speed)
+{
+    sendCommand(QString("M3 S%1").arg(speed), -1, m_settings->showUICommands());
+}
+
+void GrblController::sendSpindleSpeed(int speed)
+{
+    sendCommand(QString("S%1").arg(speed), -2, m_settings->showUICommands());
+}
+
+void GrblController::sendRapidMoveTo(double x, double y)
+{
+    sendCommand(QString("G21G90G0X%1Y%2").arg(x).arg(y));
+}
+
 void GrblController::shutdown()
 {
     m_timerConnection.stop();
@@ -128,11 +143,20 @@ void GrblController::shutdown()
     }
 }
 
+void GrblController::execJog(const QVector4D &delta, double jogFeed)
+{
+    execJog(delta, jogFeed, -2);
+}
+
 void GrblController::execJog(const QVector4D &delta, double jogStep, double jogFeed)
 {
     QVector4D vec = (m_jogVector += delta) * jogStep;
-    if (qFuzzyIsNull(vec.length())) return;
+    execJog(vec, jogFeed, -3);
+}
 
+void GrblController::execJog(const QVector4D &vec, double jogFeed ,int tableIndex)
+{
+    if (!vec.length()) return;
     const int units = m_settings->units();
     if (m_settings->axisAEnabled()) {
         sendCommand(QString("$J=%1G91X%2Y%3Z%4A%5F%6")
@@ -142,7 +166,7 @@ void GrblController::execJog(const QVector4D &delta, double jogStep, double jogF
                         .arg(vec.z(), 0, 'f', units ? 4 : 3)
                         .arg(vec.w(), 0, 'f', 3)
                         .arg(jogFeed),
-            -3, m_settings->showUICommands());
+            tableIndex, m_settings->showUICommands());
     } else {
         sendCommand(QString("$J=%1G91X%2Y%3Z%4F%5")
                         .arg(units ? "G20" : "G21")
@@ -150,7 +174,7 @@ void GrblController::execJog(const QVector4D &delta, double jogStep, double jogF
                         .arg(vec.y(), 0, 'f', units ? 4 : 3)
                         .arg(vec.z(), 0, 'f', units ? 4 : 3)
                         .arg(jogFeed),
-            -3, m_settings->showUICommands());
+            tableIndex, m_settings->showUICommands());
     }
 }
 

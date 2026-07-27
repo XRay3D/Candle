@@ -459,8 +459,8 @@
         <translation>清空控制台</translation>
     </message>
     <message>
-        <source>_spacerTop</source>
-        <translation>_spacerTop</translation>
+        <source>_spacerBot</source>
+        <translation>_spacerBot</translation>
     </message>
     <message>
         <source>_spacerLeft</source>

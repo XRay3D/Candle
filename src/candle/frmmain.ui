@@ -35,7 +35,7 @@ StyledToolButton[adjustSize=&quot;true&quot;] {
    <bool>true</bool>
   </property>
   <property name="dockOptions">
-   <set>QMainWindow::AllowNestedDocks|QMainWindow::AnimatedDocks</set>
+   <set>QMainWindow::DockOption::AllowNestedDocks|QMainWindow::DockOption::AnimatedDocks</set>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout_23" stretch="0,1">
@@ -62,10 +62,10 @@ StyledToolButton[adjustSize=&quot;true&quot;] {
 </string>
       </property>
       <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
+       <enum>QFrame::Shape::StyledPanel</enum>
       </property>
       <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
+       <enum>QFrame::Shadow::Raised</enum>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,1,1">
        <property name="topMargin">
@@ -93,20 +93,20 @@ QLabel[overrided=&quot;false&quot;] {
        <item>
         <widget class="QLabel" name="lblTableHistory">
          <property name="textFormat">
-          <enum>Qt::RichText</enum>
+          <enum>Qt::TextFormat::RichText</enum>
          </property>
          <property name="alignment">
-          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
          </property>
         </widget>
        </item>
        <item>
         <widget class="QLabel" name="lblTableHeightmapHistory">
          <property name="textFormat">
-          <enum>Qt::RichText</enum>
+          <enum>Qt::TextFormat::RichText</enum>
          </property>
          <property name="alignment">
-          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
          </property>
         </widget>
        </item>
@@ -138,16 +138,16 @@ QLabel[overrided=&quot;false&quot;] {
             </font>
            </property>
            <property name="contextMenuPolicy">
-            <enum>Qt::CustomContextMenu</enum>
+            <enum>Qt::ContextMenuPolicy::CustomContextMenu</enum>
            </property>
            <property name="selectionMode">
-            <enum>QAbstractItemView::ContiguousSelection</enum>
+            <enum>QAbstractItemView::SelectionMode::ContiguousSelection</enum>
            </property>
            <property name="selectionBehavior">
-            <enum>QAbstractItemView::SelectRows</enum>
+            <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
            </property>
            <property name="gridStyle">
-            <enum>Qt::DashLine</enum>
+            <enum>Qt::PenStyle::DashLine</enum>
            </property>
            <attribute name="horizontalHeaderMinimumSectionSize">
             <number>50</number>
@@ -166,10 +166,10 @@ QLabel[overrided=&quot;false&quot;] {
             <bool>true</bool>
            </property>
            <property name="selectionMode">
-            <enum>QAbstractItemView::SingleSelection</enum>
+            <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
            </property>
            <property name="gridStyle">
-            <enum>Qt::DashLine</enum>
+            <enum>Qt::PenStyle::DashLine</enum>
            </property>
            <attribute name="horizontalHeaderVisible">
             <bool>false</bool>
@@ -199,7 +199,7 @@ QLabel[overrided=&quot;false&quot;] {
          <item>
           <spacer name="spacerBot_2">
            <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+            <enum>Qt::Orientation::Horizontal</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>
@@ -267,7 +267,7 @@ QLabel[overrided=&quot;false&quot;] {
      <x>0</x>
      <y>0</y>
      <width>1920</width>
-     <height>26</height>
+     <height>27</height>
     </rect>
    </property>
    <widget class="QMenu" name="mnuFile">
@@ -347,11 +347,8 @@ QLabel[overrided=&quot;false&quot;] {
    <addaction name="mnuHelp"/>
   </widget>
   <widget class="QDockWidget" name="dockModification">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="allowedAreas">
-    <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
+    <set>Qt::DockWidgetArea::LeftDockWidgetArea|Qt::DockWidgetArea::RightDockWidgetArea</set>
    </property>
    <property name="windowTitle">
     <string>Modification</string>
@@ -370,7 +367,7 @@ QLabel[overrided=&quot;false&quot;] {
      <item>
       <widget class="QScrollArea" name="scrollArea">
        <property name="frameShape">
-        <enum>QFrame::NoFrame</enum>
+        <enum>QFrame::Shape::NoFrame</enum>
        </property>
        <property name="widgetResizable">
         <bool>true</bool>
@@ -380,8 +377,8 @@ QLabel[overrided=&quot;false&quot;] {
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>214</width>
-          <height>778</height>
+          <width>242</width>
+          <height>905</height>
          </rect>
         </property>
         <property name="acceptDrops">
@@ -457,10 +454,10 @@ QLabel[overrided=&quot;false&quot;] {
             <string notr="true">border: 2px solid blue;</string>
            </property>
            <property name="frameShape">
-            <enum>QFrame::StyledPanel</enum>
+            <enum>QFrame::Shape::StyledPanel</enum>
            </property>
            <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
+            <enum>QFrame::Shadow::Raised</enum>
            </property>
           </widget>
          </item>
@@ -501,7 +498,7 @@ QLabel[overrided=&quot;false&quot;] {
                <item>
                 <widget class="QLineEdit" name="txtHeightMap">
                  <property name="focusPolicy">
-                  <enum>Qt::NoFocus</enum>
+                  <enum>Qt::FocusPolicy::NoFocus</enum>
                  </property>
                  <property name="acceptDrops">
                   <bool>false</bool>
@@ -510,7 +507,7 @@ QLabel[overrided=&quot;false&quot;] {
                   <string/>
                  </property>
                  <property name="alignment">
-                  <set>Qt::AlignCenter</set>
+                  <set>Qt::AlignmentFlag::AlignCenter</set>
                  </property>
                  <property name="readOnly">
                   <bool>true</bool>
@@ -635,13 +632,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-9999.000000000000000</double>
@@ -660,13 +657,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-9999.000000000000000</double>
@@ -695,13 +692,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-9999.000000000000000</double>
@@ -734,13 +731,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-9999.000000000000000</double>
@@ -811,13 +808,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-9999.000000000000000</double>
@@ -843,13 +840,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-9999.000000000000000</double>
@@ -927,13 +924,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="decimals">
                          <number>0</number>
@@ -958,13 +955,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-999.000000000000000</double>
@@ -986,13 +983,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="minimum">
                          <double>-999.000000000000000</double>
@@ -1028,13 +1025,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="decimals">
                          <number>0</number>
@@ -1066,13 +1063,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="decimals">
                          <number>0</number>
@@ -1105,7 +1102,7 @@ QLabel[overrided=&quot;false&quot;] {
                       <item>
                        <spacer name="horizontalSpacer_6">
                         <property name="orientation">
-                         <enum>Qt::Horizontal</enum>
+                         <enum>Qt::Orientation::Horizontal</enum>
                         </property>
                         <property name="sizeHint" stdset="0">
                          <size>
@@ -1153,13 +1150,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="decimals">
                          <number>0</number>
@@ -1184,13 +1181,13 @@ QLabel[overrided=&quot;false&quot;] {
                          </sizepolicy>
                         </property>
                         <property name="locale">
-                         <locale language="C" country="AnyCountry"/>
+                         <locale language="C" country=" AnyCountry"/>
                         </property>
                         <property name="alignment">
-                         <set>Qt::AlignCenter</set>
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                         <property name="buttonSymbols">
-                         <enum>QAbstractSpinBox::NoButtons</enum>
+                         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                         </property>
                         <property name="decimals">
                          <number>0</number>
@@ -1249,7 +1246,7 @@ QLabel[overrided=&quot;false&quot;] {
                       <item>
                        <spacer name="horizontalSpacer_8">
                         <property name="orientation">
-                         <enum>Qt::Horizontal</enum>
+                         <enum>Qt::Orientation::Horizontal</enum>
                         </property>
                         <property name="sizeHint" stdset="0">
                          <size>
@@ -1298,11 +1295,8 @@ QLabel[overrided=&quot;false&quot;] {
    </widget>
   </widget>
   <widget class="QDockWidget" name="dockDevice">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="allowedAreas">
-    <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
+    <set>Qt::DockWidgetArea::LeftDockWidgetArea|Qt::DockWidgetArea::RightDockWidgetArea</set>
    </property>
    <property name="windowTitle">
     <string>Device</string>
@@ -1321,7 +1315,7 @@ QLabel[overrided=&quot;false&quot;] {
      <item>
       <widget class="QScrollArea" name="scrollArea_2">
        <property name="frameShape">
-        <enum>QFrame::NoFrame</enum>
+        <enum>QFrame::Shape::NoFrame</enum>
        </property>
        <property name="widgetResizable">
         <bool>true</bool>
@@ -1331,8 +1325,8 @@ QLabel[overrided=&quot;false&quot;] {
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>235</width>
-          <height>816</height>
+          <width>242</width>
+          <height>888</height>
          </rect>
         </property>
         <property name="acceptDrops">
@@ -1390,16 +1384,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>Y</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1434,16 +1428,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>X</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1471,16 +1465,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>Z</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1522,16 +1516,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>Z</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1559,16 +1553,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>X</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1596,16 +1590,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>Y</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1640,16 +1634,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>A</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1677,16 +1671,16 @@ QLabel[overrided=&quot;false&quot;] {
                    <string>A</string>
                   </property>
                   <property name="locale">
-                   <locale language="C" country="AnyCountry"/>
+                   <locale language="C" country=" AnyCountry"/>
                   </property>
                   <property name="alignment">
-                   <set>Qt::AlignCenter</set>
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <property name="readOnly">
                    <bool>true</bool>
                   </property>
                   <property name="buttonSymbols">
-                   <enum>QAbstractSpinBox::NoButtons</enum>
+                   <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
                   </property>
                   <property name="decimals">
                    <number>3</number>
@@ -1730,7 +1724,7 @@ QLabel[overrided=&quot;false&quot;] {
                  <string notr="true">QLineEdit {color: palette(text);}</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignCenter</set>
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
                 <property name="readOnly">
                  <bool>true</bool>
@@ -1757,10 +1751,10 @@ QLabel[overrided=&quot;false&quot;] {
             <string notr="true">border: 2px solid blue;</string>
            </property>
            <property name="frameShape">
-            <enum>QFrame::StyledPanel</enum>
+            <enum>QFrame::Shape::StyledPanel</enum>
            </property>
            <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
+            <enum>QFrame::Shadow::Raised</enum>
            </property>
           </widget>
          </item>
@@ -2130,7 +2124,7 @@ QLabel[overrided=&quot;false&quot;] {
                    <item>
                     <spacer name="horizontalSpacer_2">
                      <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
+                      <enum>Qt::Orientation::Horizontal</enum>
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
@@ -2263,7 +2257,7 @@ QLabel[overrided=&quot;false&quot;] {
                    <item>
                     <spacer name="horizontalSpacer">
                      <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
+                      <enum>Qt::Orientation::Horizontal</enum>
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
@@ -2454,10 +2448,10 @@ QLabel[overrided=&quot;false&quot;] {
                <item>
                 <spacer name="spaJog">
                  <property name="orientation">
-                  <enum>Qt::Vertical</enum>
+                  <enum>Qt::Orientation::Vertical</enum>
                  </property>
                  <property name="sizeType">
-                  <enum>QSizePolicy::Fixed</enum>
+                  <enum>QSizePolicy::Policy::Fixed</enum>
                  </property>
                  <property name="sizeHint" stdset="0">
                   <size>
@@ -2482,7 +2476,7 @@ QLabel[overrided=&quot;false&quot;] {
                     <bool>true</bool>
                    </property>
                    <property name="insertPolicy">
-                    <enum>QComboBox::NoInsert</enum>
+                    <enum>QComboBox::InsertPolicy::NoInsert</enum>
                    </property>
                    <item>
                     <property name="text">
@@ -2538,7 +2532,7 @@ QLabel[overrided=&quot;false&quot;] {
                   <number>0</number>
                  </property>
                  <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
+                  <enum>Qt::Orientation::Horizontal</enum>
                  </property>
                 </widget>
                </item>
@@ -2557,7 +2551,7 @@ QLabel[overrided=&quot;false&quot;] {
                     <bool>true</bool>
                    </property>
                    <property name="insertPolicy">
-                    <enum>QComboBox::NoInsert</enum>
+                    <enum>QComboBox::InsertPolicy::NoInsert</enum>
                    </property>
                    <item>
                     <property name="text">
@@ -2608,7 +2602,7 @@ QLabel[overrided=&quot;false&quot;] {
                   <number>0</number>
                  </property>
                  <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
+                  <enum>Qt::Orientation::Horizontal</enum>
                  </property>
                 </widget>
                </item>
@@ -2651,9 +2645,6 @@ QLabel[overrided=&quot;false&quot;] {
    </widget>
   </widget>
   <widget class="QDockWidget" name="dockVisualizer">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Visualizer</string>
    </property>
@@ -2680,10 +2671,10 @@ QLabel[overrided=&quot;false&quot;] {
         <string notr="true">border: 1px solid gray;</string>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::Shape::StyledPanel</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Raised</enum>
+        <enum>QFrame::Shadow::Raised</enum>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_8">
         <property name="leftMargin">
@@ -2824,10 +2815,10 @@ QLabel[overrided=&quot;false&quot;] {
      <item>
       <widget class="QFrame" name="fraProgramSlider">
        <property name="frameShape">
-        <enum>QFrame::NoFrame</enum>
+        <enum>QFrame::Shape::NoFrame</enum>
        </property>
        <property name="frameShadow">
-        <enum>QFrame::Raised</enum>
+        <enum>QFrame::Shadow::Raised</enum>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout">
         <property name="leftMargin">
@@ -2851,7 +2842,7 @@ QLabel[overrided=&quot;false&quot;] {
            <number>10</number>
           </property>
           <property name="orientation">
-           <enum>Qt::Horizontal</enum>
+           <enum>Qt::Orientation::Horizontal</enum>
           </property>
          </widget>
         </item>
@@ -2862,9 +2853,6 @@ QLabel[overrided=&quot;false&quot;] {
    </widget>
   </widget>
   <widget class="QDockWidget" name="dockConsole">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Console</string>
    </property>
@@ -2882,7 +2870,7 @@ QLabel[overrided=&quot;false&quot;] {
      <item>
       <widget class="QFrame" name="fraConsole">
        <property name="frameShape">
-        <enum>QFrame::NoFrame</enum>
+        <enum>QFrame::Shape::NoFrame</enum>
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_14">
         <property name="leftMargin">
@@ -2931,10 +2919,7 @@ QLabel[overrided=&quot;false&quot;] {
              <number>20</number>
             </property>
             <property name="insertPolicy">
-             <enum>QComboBox::InsertAtTop</enum>
-            </property>
-            <property name="sizeAdjustPolicy">
-             <enum>QComboBox::AdjustToMinimumContentsLength</enum>
+             <enum>QComboBox::InsertPolicy::InsertAtTop</enum>
             </property>
            </widget>
           </item>
@@ -2980,18 +2965,24 @@ QLabel[overrided=&quot;false&quot;] {
     </layout>
    </widget>
   </widget>
-  <widget class="QToolBar" name="_spacerTop">
+  <widget class="QToolBar" name="_spacerBot">
    <property name="contextMenuPolicy">
-    <enum>Qt::PreventContextMenu</enum>
+    <enum>Qt::ContextMenuPolicy::PreventContextMenu</enum>
    </property>
    <property name="windowTitle">
-    <string>_spacerTop</string>
+    <string>_spacerBot</string>
    </property>
    <property name="movable">
     <bool>false</bool>
    </property>
+   <property name="allowedAreas">
+    <set>Qt::ToolBarArea::BottomToolBarArea</set>
+   </property>
+   <property name="floatable">
+    <bool>false</bool>
+   </property>
    <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
+    <enum>BottomToolBarArea</enum>
    </attribute>
    <attribute name="toolBarBreak">
     <bool>false</bool>
@@ -2999,12 +2990,18 @@ QLabel[overrided=&quot;false&quot;] {
   </widget>
   <widget class="QToolBar" name="_spacerLeft">
    <property name="contextMenuPolicy">
-    <enum>Qt::PreventContextMenu</enum>
+    <enum>Qt::ContextMenuPolicy::PreventContextMenu</enum>
    </property>
    <property name="windowTitle">
     <string>_spacerLeft</string>
    </property>
    <property name="movable">
+    <bool>false</bool>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::ToolBarArea::LeftToolBarArea</set>
+   </property>
+   <property name="floatable">
     <bool>false</bool>
    </property>
    <attribute name="toolBarArea">
@@ -3016,12 +3013,18 @@ QLabel[overrided=&quot;false&quot;] {
   </widget>
   <widget class="QToolBar" name="_spacerRight">
    <property name="contextMenuPolicy">
-    <enum>Qt::PreventContextMenu</enum>
+    <enum>Qt::ContextMenuPolicy::PreventContextMenu</enum>
    </property>
    <property name="windowTitle">
     <string>_spacerRight</string>
    </property>
    <property name="movable">
+    <bool>false</bool>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::ToolBarArea::RightToolBarArea</set>
+   </property>
+   <property name="floatable">
     <bool>false</bool>
    </property>
    <attribute name="toolBarArea">
@@ -3033,7 +3036,7 @@ QLabel[overrided=&quot;false&quot;] {
   </widget>
   <widget class="QDockWidget" name="dockUser">
    <property name="allowedAreas">
-    <set>Qt::LeftDockWidgetArea|Qt::RightDockWidgetArea</set>
+    <set>Qt::DockWidgetArea::LeftDockWidgetArea|Qt::DockWidgetArea::RightDockWidgetArea</set>
    </property>
    <property name="windowTitle">
     <string>User</string>
@@ -3052,7 +3055,7 @@ QLabel[overrided=&quot;false&quot;] {
      <item>
       <widget class="QScrollArea" name="scrollArea_3">
        <property name="frameShape">
-        <enum>QFrame::NoFrame</enum>
+        <enum>QFrame::Shape::NoFrame</enum>
        </property>
        <property name="widgetResizable">
         <bool>true</bool>
@@ -3063,7 +3066,7 @@ QLabel[overrided=&quot;false&quot;] {
           <x>0</x>
           <y>0</y>
           <width>256</width>
-          <height>85</height>
+          <height>68</height>
          </rect>
         </property>
         <property name="acceptDrops">
@@ -3094,10 +3097,10 @@ QLabel[overrided=&quot;false&quot;] {
             <string notr="true">border: 2px solid blue;</string>
            </property>
            <property name="frameShape">
-            <enum>QFrame::StyledPanel</enum>
+            <enum>QFrame::Shape::StyledPanel</enum>
            </property>
            <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
+            <enum>QFrame::Shadow::Raised</enum>
            </property>
           </widget>
          </item>
@@ -3144,7 +3147,7 @@ QLabel[overrided=&quot;false&quot;] {
      <item>
       <widget class="frmScript" name="fraScript">
        <property name="frameShape">
-        <enum>QFrame::NoFrame</enum>
+        <enum>QFrame::Shape::NoFrame</enum>
        </property>
       </widget>
      </item>

@@ -459,7 +459,7 @@
         <translation>Визуализатор</translation>
     </message>
     <message>
-        <source>_spacerTop</source>
+        <source>_spacerBot</source>
         <translation></translation>
     </message>
     <message>
